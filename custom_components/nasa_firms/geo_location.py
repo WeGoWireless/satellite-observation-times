@@ -50,11 +50,13 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
         self,
         coordinator: FirmsCoordinator,
         cluster_id: str,
-        on_remove: Callable[[str], None],
+        untrack: Callable[[str], None],
     ) -> None:
         super().__init__(coordinator)
         self.cluster_id = cluster_id
-        self._on_remove = on_remove
+        # Deliberately NOT named _on_remove — that attribute exists on the
+        # Entity base class (list of remove callbacks) and must not be shadowed.
+        self._untrack = untrack
         self._attr_name = f"Wildfire hotspot {cluster_id}"
         self._update_from_cluster()
 
@@ -77,7 +79,7 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
     def _handle_coordinator_update(self) -> None:
         """Update in place, or remove ourselves when the fire is gone."""
         if self.cluster_id not in self.coordinator.data.clusters_by_id:
-            self._on_remove(self.cluster_id)
+            self._untrack(self.cluster_id)
             self.hass.async_create_task(self.async_remove(force_remove=True))
             return
         self._update_from_cluster()
