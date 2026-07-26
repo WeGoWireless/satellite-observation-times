@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NASA FIRMS Waldbrand-Monitor",
+        "description": "Kostenlosen MAP_KEY unter https://firms.modaps.eosdis.nasa.gov/api/map_key/ anfordern — der Key wird im Config-Eintrag gespeichert und nie in der UI angezeigt.",
+        "data": {
+          "map_key": "FIRMS MAP_KEY",
+          "region": "FIRMS-Region",
+          "location": "Zu überwachender Standort und Radius",
+          "satellites": "Satelliten",
+          "window": "Erkennungszeitraum",
+          "min_confidence": "Mindest-Konfidenz",
+          "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "FIRMS MAP_KEY aktualisieren",
+        "data": {
+          "map_key": "FIRMS MAP_KEY"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "FIRMS hat den MAP_KEY abgelehnt.",
+      "cannot_connect": "FIRMS-Server nicht erreichbar (Region und Verbindung prüfen).",
+      "no_satellites": "Mindestens einen Satelliten auswählen."
+    },
+    "abort": {
+      "already_configured": "Dieser Standort wird bereits überwacht.",
+      "reauth_successful": "MAP_KEY aktualisiert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NASA-FIRMS-Optionen",
+        "data": {
+          "satellites": "Satelliten",
+          "window": "Erkennungszeitraum",
+          "min_confidence": "Mindest-Konfidenz",
+          "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hotspot_count": {
+        "name": "Hotspots"
+      },
+      "nearest_distance": {
+        "name": "Nächster Hotspot"
+      },
+      "max_frp": {
+        "name": "Max. Feuerstrahlungsleistung"
+      }
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NASA FIRMS Wildfire Monitor",
+        "description": "Get a free MAP_KEY at https://firms.modaps.eosdis.nasa.gov/api/map_key/ — it is stored in the config entry and never shown in the UI.",
+        "data": {
+          "map_key": "FIRMS MAP_KEY",
+          "region": "FIRMS region",
+          "location": "Location and radius to monitor",
+          "satellites": "Satellites",
+          "window": "Detection window",
+          "min_confidence": "Minimum confidence",
+          "min_frp": "Minimum fire radiative power (0 = no filter)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Update FIRMS MAP_KEY",
+        "data": {
+          "map_key": "FIRMS MAP_KEY"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "FIRMS rejected the MAP_KEY.",
+      "cannot_connect": "Could not reach the FIRMS servers (check region and connectivity).",
+      "no_satellites": "Select at least one satellite."
+    },
+    "abort": {
+      "already_configured": "This location is already being monitored.",
+      "reauth_successful": "MAP_KEY updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NASA FIRMS options",
+        "data": {
+          "satellites": "Satellites",
+          "window": "Detection window",
+          "min_confidence": "Minimum confidence",
+          "min_frp": "Minimum fire radiative power (0 = no filter)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hotspot_count": {
+        "name": "Hotspots"
+      },
+      "nearest_distance": {
+        "name": "Nearest hotspot"
+      },
+      "max_frp": {
+        "name": "Max fire radiative power"
+      }
+    }
+  }
+}

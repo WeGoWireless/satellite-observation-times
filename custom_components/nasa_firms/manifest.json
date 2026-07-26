@@ -1,0 +1,12 @@
+{
+  "domain": "nasa_firms",
+  "name": "NASA FIRMS Wildfire Monitor",
+  "codeowners": ["@bangboomben"],
+  "config_flow": true,
+  "documentation": "https://github.com/bangboomben/ha-nasa-firms",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/bangboomben/ha-nasa-firms/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
