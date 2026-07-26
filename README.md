@@ -1,5 +1,7 @@
 # NASA FIRMS Wildfire Monitor for Home Assistant
 
+[![Support this project on Ko-fi](https://img.shields.io/badge/Ko--fi-support_this_project-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mrbenedict)
+
 Near-real-time satellite wildfire detection from [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/)
 (VIIRS + MODIS) as native Home Assistant entities: fires on the map card,
 aggregate sensors, and everything you need for proximity alerts.
@@ -95,6 +97,12 @@ mode: single
 - Protocol layer (`api.py`, intentionally free of HA imports) extracted to a
   PyPI package, then a Home Assistant Core submission alongside the existing
   geo-feed family (`nsw_rural_fire_service_feed`, `qld_bushfire_feed`, …)
+
+## Support
+
+This integration is free and always will be. If it earns a place on your
+dashboard, you can [buy me a coffee](https://ko-fi.com/mrbenedict) ☕ — much
+appreciated, never required.
 
 ## Credits & disclaimer
 
