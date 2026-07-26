@@ -36,6 +36,12 @@ Thread feedback drives the roadmap:
 
 - Code, comments, commit messages, README: English. Conversation with the
   maintainer: German.
+- **Editorial rule (all channels — README, forum, Ko-fi, release notes):**
+  never use active disasters as urgency marketing. The personal
+  vacation-home-in-Greece story is the anchor; ongoing fires may be mentioned
+  factually (e.g. as test validation), never as a sales hook, never with
+  dramatic disaster imagery. Wherever the tip jar appears, keep the
+  wildfire-relief pointer (IFRC / local Red Cross) next to it.
 - Pure logic changes need a run of the smoke test (stubs `aiohttp`, exercises
   bbox/haversine/parsing/clustering — see git history or ask the maintainer).
 - Runtime verification happens on the maintainer's live HA instance before

@@ -104,6 +104,11 @@ This integration is free and always will be. If it earns a place on your
 dashboard, you can [buy me a coffee](https://ko-fi.com/mrbenedict) ☕ — much
 appreciated, never required.
 
+**If you want to help those affected by wildfires:** the best place for your
+money is not my coffee fund — it's the people fighting and recovering from
+these fires. Consider the [IFRC](https://www.ifrc.org/) or your country's
+Red Cross / civil protection. This project stays free either way.
+
 ## Credits & disclaimer
 
 Fire data courtesy of NASA FIRMS. This project is not affiliated with or
