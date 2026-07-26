@@ -298,7 +298,11 @@ class FirmsClient:
 
         acq = None
         if props.get("acq_date"):
-            t = str(props.get("acq_time", "0")).zfill(4)
+            # acq_time arrives as HHMM, sometimes float-formatted ("1134.0").
+            try:
+                t = f"{int(float(props.get('acq_time') or 0)):04d}"
+            except (TypeError, ValueError):
+                t = "0000"
             acq = f"{props['acq_date']} {t[:2]}:{t[2:]} UTC"
 
         return FirmsHotspot(
