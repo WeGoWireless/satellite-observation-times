@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "NASA FIRMS Wildfire Monitor",
-        "description": "Get a free MAP_KEY at https://firms.modaps.eosdis.nasa.gov/api/map_key/ — it is stored in the config entry and never shown in the UI.",
+        "description": "Get a free MAP_KEY at {map_key_url} — it is stored in the config entry and never shown in the UI.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
           "region": "FIRMS region",

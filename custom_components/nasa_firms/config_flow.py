@@ -53,6 +53,7 @@ from .const import (
     DEFAULT_REGION,
     DEFAULT_SATELLITES,
     DOMAIN,
+    MAP_KEY_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -149,7 +150,12 @@ class NasaFirmsConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             },
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"map_key_url": MAP_KEY_URL},
+        )
 
     async def _validate(self, data: dict[str, Any]) -> dict[str, str]:
         """Try a minimal fetch to validate key, region and reachability."""

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "NASA FIRMS Waldbrand-Monitor",
-        "description": "Kostenlosen MAP_KEY unter https://firms.modaps.eosdis.nasa.gov/api/map_key/ anfordern — der Key wird im Config-Eintrag gespeichert und nie in der UI angezeigt.",
+        "description": "Kostenlosen MAP_KEY unter {map_key_url} anfordern — der Key wird im Config-Eintrag gespeichert und nie in der UI angezeigt.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
           "region": "FIRMS-Region",

@@ -26,3 +26,5 @@ FETCH_COUNT = 1000
 
 GEO_SOURCE = "nasa_firms"
 ATTRIBUTION = "Data courtesy of NASA FIRMS"
+
+MAP_KEY_URL = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"
