@@ -53,16 +53,18 @@ Thread feedback drives the roadmap:
   than pre-computing fields, since it unlocks every attribute of that fire
   rather than the ones we guessed. Add `bearing` + cardinal direction alongside
   it (second requester). Removes ~15 lines of Jinja from every user's dashboard.
-- **Wind direction: deliberately NOT an integration feature** (maintainer
-  decision, 2026-07-28). Technically trivial — `wind_bearing` is free on any
-  `weather.*` entity — but it would be the wind at the *user's* location applied
-  to a fire tens of km away, in terrain where it can differ completely, and fire
-  spread also depends on slope, fuel and humidity. Worst case the integration
-  implies "downwind, you're safe", the wind turns, and someone doesn't act.
-  This integration reports observations, not risk predictions; cross-entity
-  logic belongs in the user's own automations (and would draw fire in a Core
-  review). Ship `bearing` as the enabler and document the upwind/downwind
-  comparison as a README recipe with its limits stated.
+- **Wind direction — parked, open question put to the community** (2026-07-28).
+  First ruled out because the obvious implementation uses `wind_bearing` from
+  the user's own `weather.*` entity, i.e. the wind at *their* house applied to a
+  fire tens of km away — meaningless in mountains. Maintainer then raised the
+  better framing: query the wind **at the fire's coordinates** (met.no
+  Locationforecast takes arbitrary lat/lon, no API key), which removes that
+  objection entirely. Remaining concerns: one API call per fire (fine at 5
+  hotspots, ugly at 100, plus met.no rate limits and User-Agent rules), and the
+  bigger one — a dashboard saying "downwind, you're fine" is a safety claim
+  satellite data cannot back, since wind shifts and slope/fuel matter as much.
+  Asked pyspilf directly in the thread for his read before deciding. Either way
+  `bearing` ships first as the enabler.
 - Cluster IDs are `lat/lon` rounded to 2 decimals (`api.py`), so a centroid
   drifting across a 0.01° boundary destroys the entity and creates a new one
   (history lost) → **open, hygiene**: carry the ID forward by matching new
