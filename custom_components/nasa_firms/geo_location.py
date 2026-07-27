@@ -89,7 +89,10 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
 
     _attr_should_poll = False
     _attr_source = GEO_SOURCE
-    # Kept for the entity list and the more-info dialog, which do use it.
+    # Kept as the fallback for anything that draws an icon rather than a
+    # picture — a tile card, for one. Note it is *not* a second chance to see
+    # mdi:fire next to the picture: wherever Home Assistant's state badge is
+    # used (entity rows, the more-info header) the picture wins outright.
     _attr_icon = "mdi:fire"
     _attr_entity_picture = MARKER_PICTURE
     _attr_unit_of_measurement = UnitOfLength.KILOMETERS
