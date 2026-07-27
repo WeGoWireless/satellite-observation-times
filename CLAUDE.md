@@ -64,7 +64,22 @@ Thread feedback drives the roadmap:
   Core review would flag it. Recorder growth is the one real concern and users
   can already exclude attributes via `recorder:`. The answer to "is this getting
   bloated?" is to add fewer attributes, not to make them switchable.
-- **Wind direction — parked, open question put to the community** (2026-07-28).
+- **Wind direction — community answered YES, now a v0.2 item** (post #14,
+  2026-07-27). pyspilf: *"Having the wind direction at the spot would be
+  fantastic, in fact I was already planning to correlate hotspot bearing to wind
+  direction from my own weather station to help qualify the risk a bit better."*
+  He had the same idea independently and was building it by hand; wind **at the
+  fire** beats his own station-based plan. Same post also confirms the three
+  attributes are wanted ("I prefer everything to be self contained as opposed to
+  bits and pieces everywhere") and that he will retire his own bearing code.
+  **Design line to hold:** expose the *facts* (`wind_bearing`, `wind_speed` at
+  the fire) and let users judge — never ship a safety verdict like
+  "downwind, you are fine". Since `bearing` ships alongside, comparing the two
+  is a one-liner for the user. Fetch for the **nearest fire only**, not every
+  hotspot: one extra call per 15-min cycle instead of up to 1000. Source: met.no
+  Locationforecast (free, no key, arbitrary lat/lon) — mind its User-Agent and
+  If-Modified-Since requirements.
+- Superseded history of the wind decision (kept so it is not re-litigated):
   First ruled out because the obvious implementation uses `wind_bearing` from
   the user's own `weather.*` entity, i.e. the wind at *their* house applied to a
   fire tens of km away — meaningless in mountains. Maintainer then raised the
