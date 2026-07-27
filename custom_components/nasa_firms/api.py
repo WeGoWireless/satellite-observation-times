@@ -68,6 +68,30 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return EARTH_DIAMETER_KM * math.asin(math.sqrt(h))
 
 
+def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial great-circle bearing from point 1 to point 2, in degrees.
+
+    Not the flat approximation — that drifts noticeably away from the equator,
+    and "which way is the fire" is exactly where you don't want a rough answer.
+    """
+    rlat1, rlat2 = math.radians(lat1), math.radians(lat2)
+    dlon = math.radians(lon2 - lon1)
+    y = math.sin(dlon) * math.cos(rlat2)
+    x = math.cos(rlat1) * math.sin(rlat2) - math.sin(rlat1) * math.cos(rlat2) * math.cos(dlon)
+    return (math.degrees(math.atan2(y, x)) + 360) % 360
+
+
+CARDINALS = (
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+)
+
+
+def cardinal(degrees: float) -> str:
+    """Compass point for a bearing, on the 16-point scale."""
+    return CARDINALS[int(((degrees % 360) + 11.25) % 360 / 22.5)]
+
+
 def bbox_around(
     lat: float, lon: float, radius_km: float
 ) -> tuple[float, float, float, float]:
@@ -136,6 +160,8 @@ class FirmsCluster:
     brightness: float | None
     acq_datetime: str | None
     daynight: str | None
+    bearing: float | None = None
+    direction: str | None = None
 
 
 def _conf_rank(conf: str | None) -> int:
@@ -145,6 +171,7 @@ def _conf_rank(conf: str | None) -> int:
 def cluster_hotspots(
     hotspots_with_distance: list[tuple[FirmsHotspot, float]],
     cluster_radius_km: float = 1.0,
+    origin: tuple[float, float] | None = None,
 ) -> list[FirmsCluster]:
     """Greedy dedupe: detections within cluster_radius_km collapse into one fire.
 
@@ -191,22 +218,30 @@ def cluster_hotspots(
         ):
             target["acq"] = hotspot.acq_datetime
 
-    clusters = [
-        FirmsCluster(
-            id=f"{c['lat']:.2f}/{c['lon']:.2f}",
-            latitude=c["lat"],
-            longitude=c["lon"],
-            distance_km=round(c["dist"], 1),
-            satellites=sorted(c["sats"]),
-            detections=c["count"],
-            frp=c["frp"],
-            confidence=c["conf"],
-            brightness=c["bright"],
-            acq_datetime=c["acq"],
-            daynight=c["daynight"],
+    clusters = []
+    for c in raw:
+        brg = (
+            bearing_deg(origin[0], origin[1], c["lat"], c["lon"])
+            if origin is not None
+            else None
         )
-        for c in raw
-    ]
+        clusters.append(
+            FirmsCluster(
+                id=f"{c['lat']:.2f}/{c['lon']:.2f}",
+                latitude=c["lat"],
+                longitude=c["lon"],
+                distance_km=round(c["dist"], 1),
+                satellites=sorted(c["sats"]),
+                detections=c["count"],
+                frp=c["frp"],
+                confidence=c["conf"],
+                brightness=c["bright"],
+                acq_datetime=c["acq"],
+                daynight=c["daynight"],
+                bearing=round(brg) if brg is not None else None,
+                direction=cardinal(brg) if brg is not None else None,
+            )
+        )
     clusters.sort(key=lambda c: c.distance_km)
     # Two distinct clusters can round to the same 0.01° id — disambiguate.
     seen: dict[str, int] = {}

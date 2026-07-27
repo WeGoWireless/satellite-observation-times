@@ -23,10 +23,32 @@ from .coordinator import FirmsCoordinator, FirmsData, NasaFirmsConfigEntry
 
 @dataclass(frozen=True, kw_only=True)
 class FirmsSensorDescription(SensorEntityDescription):
-    """Sensor description with value/attribute extractors."""
+    """Sensor description with value/attribute extractors.
+
+    `attributes_fn` takes the coordinator rather than just its data, because the
+    nearest-hotspot attributes need the cluster-id -> entity_id register that
+    the geo_location entities maintain.
+    """
 
     value_fn: Callable[[FirmsData], Any]
-    attributes_fn: Callable[[FirmsData], dict[str, Any]] | None = None
+    attributes_fn: Callable[[FirmsCoordinator], dict[str, Any]] | None = None
+
+
+def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
+    """Pointer to the closest fire, plus its bearing and compass direction.
+
+    The entity id is the useful part: it unlocks every attribute of that fire
+    instead of only the fields duplicated here.
+    """
+    clusters = coordinator.data.clusters
+    if not clusters:
+        return {"nearest_entity_id": None, "bearing": None, "direction": None}
+    nearest = clusters[0]  # coordinator sorts by distance
+    return {
+        "nearest_entity_id": coordinator.entity_ids.get(nearest.id),
+        "bearing": nearest.bearing,
+        "direction": nearest.direction,
+    }
 
 
 SENSORS: tuple[FirmsSensorDescription, ...] = (
@@ -36,10 +58,10 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:fire",
         value_fn=lambda d: len(d.clusters),
-        attributes_fn=lambda d: {
-            "raw_detections": d.raw_detections,
-            "per_satellite": d.per_satellite,
-            "satellite_errors": d.satellite_errors,
+        attributes_fn=lambda c: {
+            "raw_detections": c.data.raw_detections,
+            "per_satellite": c.data.per_satellite,
+            "satellite_errors": c.data.satellite_errors,
         },
     ),
     FirmsSensorDescription(
@@ -50,6 +72,7 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda d: d.nearest_km,
+        attributes_fn=_nearest_attributes,
     ),
     FirmsSensorDescription(
         key="max_frp",
@@ -108,5 +131,5 @@ class FirmsSensor(CoordinatorEntity[FirmsCoordinator], SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return diagnostic attributes where defined."""
         if self.entity_description.attributes_fn:
-            return self.entity_description.attributes_fn(self.coordinator.data)
+            return self.entity_description.attributes_fn(self.coordinator)
         return None

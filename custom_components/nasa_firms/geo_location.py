@@ -7,6 +7,7 @@ from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ATTRIBUTION, GEO_SOURCE
@@ -32,6 +33,12 @@ async def async_setup_entry(
         tracked.update(entity.cluster_id for entity in new)
         if new:
             async_add_entities(new)
+            # entity_ids only exist once Home Assistant has actually added the
+            # entities, which happens after this callback returns. Nudge the
+            # aggregate sensors shortly afterwards so `nearest_entity_id` is
+            # populated right away instead of staying None until the next
+            # 15-minute refresh.
+            async_call_later(hass, 2, lambda _now: coordinator.async_update_listeners())
 
     entry.async_on_unload(coordinator.async_add_listener(_sync))
     _sync()
@@ -59,6 +66,16 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
         self._untrack = untrack
         self._attr_name = f"Wildfire hotspot {cluster_id}"
         self._update_from_cluster()
+
+    async def async_added_to_hass(self) -> None:
+        """Publish our entity_id so the aggregate sensors can point at us."""
+        await super().async_added_to_hass()
+        self.coordinator.entity_ids[self.cluster_id] = self.entity_id
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Drop our entry again when the fire is gone."""
+        self.coordinator.entity_ids.pop(self.cluster_id, None)
+        await super().async_will_remove_from_hass()
 
     def _update_from_cluster(self) -> None:
         cluster = self.coordinator.data.clusters_by_id[self.cluster_id]

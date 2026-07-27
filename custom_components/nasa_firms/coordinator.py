@@ -91,6 +91,10 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.min_confidence: str = cfg.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE)
         self.min_frp: float = cfg.get(CONF_MIN_FRP, DEFAULT_MIN_FRP)
         self._bbox = bbox_around(self.latitude, self.longitude, self.radius_km)
+        # cluster id -> entity_id, filled in by the geo_location entities once
+        # Home Assistant has assigned them. Lets the aggregate sensors point at
+        # the actual fire entity instead of guessing its slug.
+        self.entity_ids: dict[str, str] = {}
 
     async def _async_update_data(self) -> FirmsData:
         results = await asyncio.gather(
@@ -139,6 +143,8 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             within.append((h, dist))
 
         data.raw_detections = len(within)
-        data.clusters = cluster_hotspots(within, CLUSTER_RADIUS_KM)
+        data.clusters = cluster_hotspots(
+            within, CLUSTER_RADIUS_KM, (self.latitude, self.longitude)
+        )
         data.clusters_by_id = {c.id: c for c in data.clusters}
         return data

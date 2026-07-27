@@ -50,9 +50,28 @@ Per config entry:
 | Entity | Meaning |
 |---|---|
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors) |
-| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none) |
+| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight` |
+
+### Pointing at the nearest fire
+
+The nearest-hotspot sensor carries the id of the fire entity it is reporting, so
+you can read any of that fire's attributes without searching for it yourself:
+
+```jinja
+{% set e = state_attr('sensor.firms_40_54_23_01_nearest_hotspot', 'nearest_entity_id') %}
+{{ state_attr(e, 'frp_mw') }} MW, {{ state_attr(e, 'confidence') }} confidence,
+seen by {{ state_attr(e, 'satellites') | join(' + ') }}
+```
+
+`bearing` (degrees) and `direction` (16-point compass) are on the same sensor —
+great-circle values, so they stay correct at high latitudes:
+
+```jinja
+Fire {{ states('sensor.firms_40_54_23_01_nearest_hotspot') }} km
+{{ state_attr('sensor.firms_40_54_23_01_nearest_hotspot', 'direction') }}
+```
 
 ## Map card
 
