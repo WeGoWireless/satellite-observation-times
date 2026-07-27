@@ -143,7 +143,10 @@ When there is a fire in range, its coordinates — rounded to about 1 km — are
 sent to met.no once per update cycle to look up the wind. Nothing about your own
 location, your MAP_KEY or your instance is included.
 
-## Map card
+## Dashboard
+
+The fires show up on the standard map card — no custom cards, nothing to
+configure beyond naming the source:
 
 ```yaml
 type: map
@@ -154,6 +157,64 @@ entities:
 default_zoom: 8
 theme_mode: auto
 ```
+
+### The map plus everything the integration knows
+
+A map answers *where*. This pairs it with the rest — how far, how strong, seen
+by which satellites, and the wind at the fire — using only built-in cards.
+Replace the two entity ids on the first two lines with yours and paste it in:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: map
+    geo_location_sources:
+      - nasa_firms
+    entities:
+      - zone.home
+    default_zoom: 8
+    theme_mode: auto
+    aspect_ratio: "1:1"
+  - type: markdown
+    content: |
+      {% set nearest = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
+      {% set count = 'sensor.firms_40_54_23_01_hotspots' %}
+      {% set km = states(nearest) %}
+      {%- if km in ['unknown', 'unavailable'] -%}
+      No active fire detections in range.
+      {%- else -%}
+      ### {{ km }} km {{ state_attr(nearest, 'direction') }}
+      {{ states(count) }} fire(s) in range.
+      {%- set e = state_attr(nearest, 'nearest_entity_id') %}
+      {%- if e %}
+      {{ state_attr(e, 'frp_mw') }} MW · {{ state_attr(e, 'confidence') }} confidence · {{ state_attr(e, 'satellites') | join(' + ') }} · {{ state_attr(e, 'acquired') }}
+      {%- endif %}
+      {%- set fire = state_attr(nearest, 'bearing') %}
+      {%- set wind = state_attr(nearest, 'wind_bearing') %}
+      {% if wind is none or fire is none %}
+      Wind at the fire is currently unavailable.
+      {%- else %}
+      Wind at the fire: from **{{ state_attr(nearest, 'wind_direction') }}** at {{ state_attr(nearest, 'wind_speed') }} m/s — **{{ (((wind - fire) + 180) % 360 - 180) | abs | round }}°** off the line towards you (0° = straight at you).
+      {%- endif %}
+      {%- endif %}
+```
+
+It renders roughly like this:
+
+> ### 9.2 km SW
+> 11 fire(s) in range.
+> 29.18 MW · nominal confidence · noaa20 + noaa21 + snpp · 2026-07-27 12:00 UTC
+>
+> Wind at the fire: from **NNW** at 6.3 m/s — **94°** off the line towards you (0° = straight at you).
+
+Every branch is covered: no fires in range collapses it to a single line, and a
+failed weather lookup only replaces the wind sentence. **Read the angle with the
+[caveats above](#upwind-or-downwind-work-it-out-yourself) in mind** — it is
+geometry on two observations, not an all-clear.
+
+Using [Bubble Card](https://github.com/Clooos/Bubble-Card)? The same two cards
+drop straight into a `pop-up` as its `cards:` list, so a tile on your dashboard
+opens the full picture.
 
 ## Proximity alert example
 
