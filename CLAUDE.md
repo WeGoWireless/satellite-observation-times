@@ -39,14 +39,38 @@ Thread feedback drives the roadmap:
   plus manual ignore zones (coordinate + radius) in the options flow. Raised
   independently by two users (posts #4/#5, #7) — the strongest differentiator
   left over the plain YAML setup.
-- Map markers carry no intensity signal → **open, v0.2 candidate**: colour by
-  FRP. A user solved it with Node-RED + nathan.gs map-card + auto-entities +
-  z-index layering (post #7); we should manage it natively. Idea: per-cluster
-  `entity_picture` as a colour-graded SVG data URI, which the core map card
-  renders in the marker — needs verifying that it actually applies to
-  `geo_location` entities. Fallback/companion: a plain `severity` attribute
-  (low/moderate/high/extreme) so card-mod and auto-entities users can style
-  without parsing raw FRP.
+- Map markers carry no intensity signal → **open, and the mechanism is now
+  proven**: colour by FRP. A user solved it with Node-RED + nathan.gs map-card
+  + auto-entities + z-index layering (post #7); we should manage it natively.
+  The `entity_picture` route was verified against the frontend source while
+  building v0.3.0 and **works** — see the marker note below. Colouring is
+  therefore a small step: swap the one constant in `geo_location.py` for a
+  handful of pre-built pictures picked by FRP. What is *not* settled and needs
+  a maintainer decision first: the thresholds. Fallback/companion: a plain
+  `severity` attribute (low/moderate/high/extreme) so card-mod and
+  auto-entities users can style without parsing raw FRP.
+- **Map card marker rendering (verified 2026-07-27, frontend `dev`).** The card
+  reads an entity's `icon` only when the entity carries `label_mode: icon`, and
+  that can only be set on entities listed one by one. Anything arriving through
+  `geo_location_sources` is a bare entity id, so it can never carry it — those
+  markers fall back to `entity_picture`, and without one to the first letters of
+  the friendly name ("Wildfire hotspot 43.6/3.9" rendered as "Wh4"). Confirmed
+  in `ha-map.ts`/`ha-entity-marker.ts`: the picture wins over the name and is
+  applied as a CSS `background-image` in a 48px circle. Hence the flame shipped
+  in v0.3.0 as a base64 SVG data URI (not percent-encoded — it lands in an
+  unquoted `url()`), full-bleed 24x24, one shared module constant. `_attr_icon`
+  stays for the entity list and more-info dialog, which do use it.
+- **The configured radius has no upper bound** → **open, hygiene.** The location
+  selector lets a user drag it arbitrarily large. Past a certain size the
+  `FETCH_COUNT = 1000` cap truncates the result, and the only signal is a log
+  warning — nothing in the UI. Either cap the radius in the config flow or
+  surface the truncation on the hotspot sensor before this reaches a wide
+  audience.
+- **One map card mixes all config entries** → documented, not fixed. `nasa_firms`
+  is a single source name for every entry, so a card using
+  `geo_location_sources` plots them all together — two distant entries give a
+  useless zoomed-out map. The core card cannot filter geo_location by entry;
+  the README says so and points at per-entity cards as the way out.
 - ~~The nearest-hotspot sensor carries only the distance~~ → **DONE in v0.2.0**
   (post #12). Ships `nearest_entity_id`, `bearing` and `direction`; `latitude`
   /`longitude` deliberately not duplicated, they are reachable through the

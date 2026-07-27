@@ -91,8 +91,9 @@ calculate with, exactly like `direction` and `bearing` for the fire itself.
 
 Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
 One request per 15-minute cycle, for the nearest fire only, cached according to
-met.no's own `Expires` header. Both attributes are `None` when there is no fire
-in range or the lookup did not succeed — the fire data is unaffected either way.
+met.no's own `Expires` header. All three attributes are `None` when there is no
+fire in range or the lookup did not succeed — the fire data is unaffected
+either way.
 
 #### Upwind or downwind: work it out yourself
 
@@ -157,6 +158,21 @@ entities:
 default_zoom: 8
 theme_mode: auto
 ```
+
+Each fire is drawn as a flame marker. The map card cannot use an entity's icon
+for markers it pulls in through `geo_location_sources` — it would otherwise
+label them with the first letters of the entity name — so the integration ships
+the flame as the entity picture instead. Nothing to configure, and it looks the
+same in light and dark themes.
+
+**One card shows every configured location.** `nasa_firms` is a single source
+name shared by all config entries, so a card set up this way plots the fires of
+all of them together. If you monitor two places far apart, either accept the
+zoomed-out view or give each one its own card listing its fire entities
+explicitly (`auto-entities` and similar cards can filter them by name).
+
+Only fires inside the radius you configured ever become entities, so the map
+never shows detections from beyond it.
 
 ### The map plus everything the integration knows
 
@@ -278,7 +294,7 @@ Science Data and Information System (ESDIS).
 
 Wind data from [MET Norway](https://api.met.no/) (Norwegian Meteorological
 Institute), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-and reduced to the two values documented above. This project is not affiliated
+and reduced to the three values documented above. This project is not affiliated
 with or endorsed by MET Norway.
 
 License: [MIT](LICENSE)

@@ -34,6 +34,14 @@ queried **once per 15-minute cycle for the nearest fire only** — not per hotsp
 as their terms of service require. If the lookup fails, the two attributes go
 `None` and nothing else changes: fire data never depends on the weather source.
 
+### Fires now look like fires on the map
+
+Every hotspot is drawn as a flame marker instead of the three-letter name stub
+the map card falls back to (`Wildfire hotspot 43.6/3.9` used to render as
+"Wh4"). The card cannot read an entity's icon for markers fed in through
+`geo_location_sources`, so the flame ships as the entity picture — nothing to
+configure, no custom card, and it reads the same in light and dark themes.
+
 ### Also in this release
 
 - **Fixed a thread-safety error that filled the log on every restart.** The
@@ -55,10 +63,15 @@ Wind data from MET Norway, used under CC BY 4.0.
 ## Forum post (short form)
 
 > v0.3.0 is out, and it is the wind one. `sensor.*_nearest_hotspot` now carries
-> `wind_bearing` and `wind_speed` measured at the fire's own coordinates rather
-> than at your house — @pyspilf, this is your post #14. Since `bearing` already
-> ships alongside, comparing the two is one line of Jinja; the README has the
-> recipe together with an honest list of what it does not tell you. No risk
-> score and no "you're fine" verdict, on purpose: wind shifts, and terrain and
-> fuel matter as much as direction. One met.no request per 15-minute cycle for
-> the nearest fire only, and if it fails the fire data carries on untouched.
+> `wind_bearing`, `wind_direction` and `wind_speed` measured at the fire's own
+> coordinates rather than at your house — @pyspilf, this is your post #14. Since
+> `bearing` already ships alongside, comparing the two is one line of Jinja; the
+> README has the recipe together with an honest list of what it does not tell
+> you. No risk score and no "you're fine" verdict, on purpose: wind shifts, and
+> terrain and fuel matter as much as direction. One met.no request per 15-minute
+> cycle for the nearest fire only, and if it fails the fire data carries on
+> untouched.
+>
+> Also in this one: the fires finally look like fires on the map card — a flame
+> marker instead of the three-letter name stub — and a restart no longer fills
+> the log with thread-safety tracebacks.

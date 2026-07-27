@@ -1,6 +1,7 @@
 """Geolocation events: one map entity per deduplicated fire."""
 from __future__ import annotations
 
+import base64
 from collections.abc import Callable
 from datetime import datetime
 
@@ -56,12 +57,41 @@ async def async_setup_entry(
     _sync()
 
 
+# The map card ignores `icon` for anything it pulls in through
+# `geo_location_sources`: those entities arrive as bare entity ids, and only
+# entities listed one by one can carry the `label_mode: icon` that would make
+# it read the icon. Without a picture the marker falls back to the first
+# letters of the name, so every fire showed up as "Wh4". What the card does
+# honour for source-fed entities is `entity_picture`, which it renders as the
+# marker's background image — so the flame has to travel as a picture.
+#
+# Sized 24x24 to match the 48px marker at 2x, drawn full-bleed because the
+# card clips it to a circle anyway. One module-level constant: it is the same
+# picture for every fire, and it ends up in the state attributes of each one.
+_MARKER_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    '<circle cx="12" cy="12" r="12" fill="#d84315"/>'
+    '<path fill="#fff" d="M12 2.5c0 2.6 1.2 3.8 2.6 5.3C16.2 9.5 17.7 11.3 17.7 14'
+    'a5.7 5.7 0 0 1-11.4 0c0-1.9.7-3.4 2-4.7 0 1.5.6 2.6 1.6 2.6 1.3 0 1.9-1.3 '
+    '1.5-3-.3-1.9-.8-4-.4-6.4z"/>'
+    "</svg>"
+)
+# base64 rather than percent-encoding: the card drops the value straight into
+# an unquoted CSS url(), where raw angle brackets and spaces would break it.
+MARKER_PICTURE = (
+    "data:image/svg+xml;base64,"
+    + base64.b64encode(_MARKER_SVG.encode()).decode()
+)
+
+
 class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
     """A deduplicated fire hotspot on the map."""
 
     _attr_should_poll = False
     _attr_source = GEO_SOURCE
+    # Kept for the entity list and the more-info dialog, which do use it.
     _attr_icon = "mdi:fire"
+    _attr_entity_picture = MARKER_PICTURE
     _attr_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_attribution = ATTRIBUTION
 
