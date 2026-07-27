@@ -47,14 +47,13 @@ Thread feedback drives the roadmap:
   `geo_location` entities. Fallback/companion: a plain `severity` attribute
   (low/moderate/high/extreme) so card-mod and auto-entities users can style
   without parsing raw FRP.
-- The nearest-hotspot sensor carries only the distance, with no pointer back to
-  the fire it came from (post #12) → **open, v0.2 candidate, cheap**: expose
-  exactly three attributes — `nearest_entity_id` (the asker's own suggestion,
-  better than pre-computing fields since it unlocks the whole entity),
-  `bearing` and a cardinal direction (two requesters; the great-circle formula
-  is easy to get wrong by hand — see the `cos(radians)` confusion in this very
-  thread). Deliberately **not** `latitude`/`longitude` on the sensor: reachable
-  through the entity id, so they would be redundant.
+- ~~The nearest-hotspot sensor carries only the distance~~ → **DONE in v0.2.0**
+  (post #12). Ships `nearest_entity_id`, `bearing` and `direction`; `latitude`
+  /`longitude` deliberately not duplicated, they are reachable through the
+  entity id. Note the startup race fixed along the way: entity ids only exist
+  after HA adds the entities, so the geo_location platform nudges the
+  coordinator listeners ~2 s after adding — without that the sensor renders
+  before any id exists and the attribute stays `None` for a full refresh cycle.
 - **Attributes stay non-configurable** (maintainer decision, 2026-07-28). A
   multi-select "which attributes do you want" in the config flow was considered
   and rejected: attributes are invisible until looked for and cost nothing,
@@ -102,10 +101,15 @@ API, deployments concentrated in the US; the Spanish user's own utility
 confirmed no API access. Not a data channel we can consume — do not revisit
 without new evidence.
 
-**Sequencing (maintainer decision, 2026-07-27):** none of the open items get
-built yet. v0.1.2 has been public for a day; wait for real installation
-feedback before committing to a v0.2 scope, so the roadmap follows actual
-usage instead of two forum posts.
+**Sequencing (maintainer decision, 2026-07-27):** the three nearest-hotspot
+attributes shipped as v0.2.0 because a user was waiting on them to retire his
+own workaround. Everything else still waits for real installation feedback
+rather than forum enthusiasm.
+
+**Wind is a separate work package** — see `docs/TASK-wind-at-fire.md`. It is
+handled in its own development session because it introduces the first external
+data source into the integration, which is an architecture decision rather than
+an incremental attribute.
 
 ## Conventions
 
