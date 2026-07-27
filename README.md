@@ -18,6 +18,7 @@ and fixes what that approach structurally can't:
 | MAP_KEY | visible in the entry title | stored in config data, never displayed |
 | Polling | every 5 min | every 15 min, matching NASA's refresh cadence |
 | Count / nearest-distance sensors | template DIY | built in, plus max FRP |
+| Wind at the fire | not available | fetched for the nearest fire's own coordinates |
 
 ![Deduplicated FIRMS fire detections on the standard Home Assistant map card](assets/map-live-fires.png)
 
@@ -50,7 +51,7 @@ Per config entry:
 | Entity | Meaning |
 |---|---|
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors) |
-| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction` |
+| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_speed` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight` |
 
@@ -72,6 +73,66 @@ great-circle values, so they stay correct at high latitudes:
 Fire {{ states('sensor.firms_40_54_23_01_nearest_hotspot') }} km
 {{ state_attr('sensor.firms_40_54_23_01_nearest_hotspot', 'direction') }}
 ```
+
+### Wind at the fire
+
+The same sensor carries the wind **at the nearest fire's own coordinates**, not
+at your house — which is the whole point, since the two can differ completely
+across a valley:
+
+| Attribute | Meaning |
+|---|---|
+| `wind_bearing` | Direction the wind is blowing **from**, in degrees (0 = from the north) |
+| `wind_speed` | Wind speed in **m/s** at 10 m above ground (multiply by 3.6 for km/h) |
+
+Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
+One request per 15-minute cycle, for the nearest fire only, cached according to
+met.no's own `Expires` header. Both attributes are `None` when there is no fire
+in range or the lookup did not succeed — the fire data is unaffected either way.
+
+#### Upwind or downwind: work it out yourself
+
+`bearing` is measured **from you to the fire**, `wind_bearing` is the direction
+the wind comes **from** at the fire. The wind pushes smoke towards
+`wind_bearing + 180°`, and the line from the fire to you is `bearing + 180°` —
+the same 180° on both sides, so the smoke travels along your line of sight
+exactly when the two raw numbers are close:
+
+```jinja
+{% set s = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
+{% set fire = state_attr(s, 'bearing') %}
+{% set wind = state_attr(s, 'wind_bearing') %}
+{% if fire is not none and wind is not none %}
+  {# 0 deg = wind pushing along the fire-to-you line, 180 deg = the other way #}
+  {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
+  Fire {{ states(s) }} km {{ state_attr(s, 'direction') }},
+  wind {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,
+  {{ delta }}° off the line towards you.
+{% endif %}
+```
+
+**Read that number for what it is.** It is a geometry calculation on two
+observations, not a safety assessment:
+
+- `wind_speed` and `wind_bearing` are a **forecast** for the fire's grid cell,
+  not a measurement at the flame front, and they are interpolated to the nearest
+  hour.
+- **Wind turns.** A comfortable 170° now says nothing about the next hour, and a
+  wind shift is the classic way a fire surprises people.
+- **Terrain beats wind direction.** Fires run uphill far faster than downhill,
+  large fires generate their own wind, and slope, fuel and humidity matter as
+  much as the direction the smoke is drifting today.
+- The wind **at the fire** is not the wind along the whole path to you, and this
+  says nothing about plume height or how far smoke will actually carry.
+
+So: a useful extra input, never an all-clear. Your country's official warning
+channel stays the authority on whether to act.
+
+#### What leaves your instance
+
+When there is a fire in range, its coordinates — rounded to about 1 km — are
+sent to met.no once per update cycle to look up the wind. Nothing about your own
+location, your MAP_KEY or your instance is included.
 
 ## Map card
 
@@ -144,5 +205,10 @@ Fire data courtesy of NASA FIRMS. This project is not affiliated with or
 endorsed by NASA. We acknowledge the use of data and imagery from NASA's Fire
 Information for Resource Management System (FIRMS), part of NASA's Earth
 Science Data and Information System (ESDIS).
+
+Wind data from [MET Norway](https://api.met.no/) (Norwegian Meteorological
+Institute), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+and reduced to the two values documented above. This project is not affiliated
+with or endorsed by MET Norway.
 
 License: [MIT](LICENSE)

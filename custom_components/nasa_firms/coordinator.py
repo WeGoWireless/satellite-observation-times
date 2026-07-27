@@ -17,6 +17,9 @@ from .api import (
     FirmsAuthError,
     FirmsClient,
     FirmsCluster,
+    MetNoClient,
+    WeatherError,
+    WindObservation,
     bbox_around,
     cluster_hotspots,
     haversine_km,
@@ -50,6 +53,9 @@ class FirmsData:
     raw_detections: int = 0
     per_satellite: dict[str, int] = field(default_factory=dict)
     satellite_errors: dict[str, str] = field(default_factory=dict)
+    # Wind at the nearest fire's own coordinates; None whenever the lookup was
+    # skipped or failed, which is not an error worth surfacing.
+    nearest_wind: WindObservation | None = None
 
     @property
     def nearest_km(self) -> float | None:
@@ -73,6 +79,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         hass: HomeAssistant,
         entry: NasaFirmsConfigEntry,
         client: FirmsClient,
+        weather: MetNoClient,
     ) -> None:
         super().__init__(
             hass,
@@ -82,6 +89,9 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             update_interval=UPDATE_INTERVAL,
         )
         self.client = client
+        self.weather = weather
+        # Latched so a weather outage is reported once, not every 15 minutes.
+        self._weather_failing = False
         cfg = {**entry.data, **entry.options}
         self.latitude: float = cfg[CONF_LATITUDE]
         self.longitude: float = cfg[CONF_LONGITUDE]
@@ -147,4 +157,26 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             within, CLUSTER_RADIUS_KM, (self.latitude, self.longitude)
         )
         data.clusters_by_id = {c.id: c for c in data.clusters}
+        if data.clusters:
+            data.nearest_wind = await self._async_wind(data.clusters[0])
         return data
+
+    async def _async_wind(self, cluster: FirmsCluster) -> WindObservation | None:
+        """Wind at the closest fire only — a busy box holds hundreds of them.
+
+        Never raises: the fire data is the product, so a weather outage costs
+        two attributes and nothing else.
+        """
+        try:
+            wind = await self.weather.wind_at(cluster.latitude, cluster.longitude)
+        except WeatherError as err:
+            if not self._weather_failing:
+                self._weather_failing = True
+                _LOGGER.warning(
+                    "Wind lookup failed, continuing without wind attributes: %s", err
+                )
+            else:
+                _LOGGER.debug("Wind lookup still failing: %s", err)
+            return None
+        self._weather_failing = False
+        return wind

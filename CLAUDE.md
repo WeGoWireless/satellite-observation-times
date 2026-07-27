@@ -63,21 +63,18 @@ Thread feedback drives the roadmap:
   Core review would flag it. Recorder growth is the one real concern and users
   can already exclude attributes via `recorder:`. The answer to "is this getting
   bloated?" is to add fewer attributes, not to make them switchable.
-- **Wind direction — community answered YES, now a v0.2 item** (post #14,
-  2026-07-27). pyspilf: *"Having the wind direction at the spot would be
-  fantastic, in fact I was already planning to correlate hotspot bearing to wind
-  direction from my own weather station to help qualify the risk a bit better."*
-  He had the same idea independently and was building it by hand; wind **at the
-  fire** beats his own station-based plan. Same post also confirms the three
-  attributes are wanted ("I prefer everything to be self contained as opposed to
-  bits and pieces everywhere") and that he will retire his own bearing code.
-  **Design line to hold:** expose the *facts* (`wind_bearing`, `wind_speed` at
-  the fire) and let users judge — never ship a safety verdict like
-  "downwind, you are fine". Since `bearing` ships alongside, comparing the two
-  is a one-liner for the user. Fetch for the **nearest fire only**, not every
-  hotspot: one extra call per 15-min cycle instead of up to 1000. Source: met.no
-  Locationforecast (free, no key, arbitrary lat/lon) — mind its User-Agent and
-  If-Modified-Since requirements.
+- ~~Wind direction at the fire~~ → **DONE in v0.3.0** (post #14). Ships
+  `wind_bearing` and `wind_speed` on the nearest sensor, from met.no
+  Locationforecast, one request per 15-min cycle for the nearest cluster only.
+  **Design line held and not up for revision:** facts only, no risk score, no
+  "downwind, you are fine" — wind turns and slope/fuel matter as much. The
+  upwind/downwind maths lives in the README as a user template, with its limits
+  spelled out. met.no's ToS shapes `MetNoClient`: identifying User-Agent with
+  the repo as contact, `Expires` respected before any refetch,
+  `If-Modified-Since` for cheap 304s, coordinates rounded to 2 decimals (~1 km,
+  well inside their 4-decimal cap, and it keeps the cache warm as the
+  representative pixel jitters). 403/429 back off for an hour. Attribution is
+  CC BY 4.0 and only shown while wind data is actually present.
 - Superseded history of the wind decision (kept so it is not re-litigated):
   First ruled out because the obvious implementation uses `wind_bearing` from
   the user's own `weather.*` entity, i.e. the wind at *their* house applied to a
@@ -106,10 +103,12 @@ attributes shipped as v0.2.0 because a user was waiting on them to retire his
 own workaround. Everything else still waits for real installation feedback
 rather than forum enthusiasm.
 
-**Wind is a separate work package** — see `docs/TASK-wind-at-fire.md`. It is
-handled in its own development session because it introduces the first external
-data source into the integration, which is an architecture decision rather than
-an incremental attribute.
+**Wind shipped as v0.3.0** — brief kept in `docs/TASK-wind-at-fire.md` as the
+record of why it looks the way it does. It introduced the **first external data
+source** into the integration, so it sets the precedent for the next one: the
+client lives in `api.py` with its own error type, the coordinator swallows its
+failures, and the fire data never depends on it. Any future second source
+follows that shape.
 
 ## Conventions
 
@@ -124,8 +123,11 @@ an incremental attribute.
   factually (e.g. as test validation), never as a sales hook, never with
   dramatic disaster imagery. Wherever the tip jar appears, keep the
   wildfire-relief pointer (IFRC / local Red Cross) next to it.
-- Pure logic changes need a run of the smoke test (stubs `aiohttp`, exercises
-  bbox/haversine/parsing/clustering — see git history or ask the maintainer).
+- Pure logic changes need a run of the smoke test: `python tests/smoke_test.py`.
+  No dependencies and no pytest — it stubs `aiohttp`, loads `api.py` directly
+  and exercises bbox/haversine/clustering plus the met.no client against a
+  recorded payload in `tests/fixtures/`. It lives in the repo since v0.3.0;
+  earlier versions kept it out of tree, which is why older notes say to ask.
 - Runtime verification happens on the maintainer's live HA instance before
   any release; this repo has no HA test harness yet (planned with the Core
   prep: pytest-homeassistant-custom-component).

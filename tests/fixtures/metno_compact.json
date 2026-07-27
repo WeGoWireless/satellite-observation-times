@@ -1,0 +1,102 @@
+{
+  "type": "Feature",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      3.9,
+      43.6,
+      12
+    ]
+  },
+  "properties": {
+    "meta": {
+      "updated_at": "2026-07-27T11:17:48Z",
+      "units": {
+        "air_pressure_at_sea_level": "hPa",
+        "air_temperature": "celsius",
+        "cloud_area_fraction": "%",
+        "precipitation_amount": "mm",
+        "relative_humidity": "%",
+        "wind_from_direction": "degrees",
+        "wind_speed": "m/s"
+      }
+    },
+    "timeseries": [
+      {
+        "time": "2026-07-27T12:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_pressure_at_sea_level": 1016.0,
+              "air_temperature": 31.6,
+              "cloud_area_fraction": 6.2,
+              "relative_humidity": 34.6,
+              "wind_from_direction": 330.8,
+              "wind_speed": 4.8
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-07-27T13:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_pressure_at_sea_level": 1015.5,
+              "air_temperature": 32.4,
+              "cloud_area_fraction": 2.3,
+              "relative_humidity": 32.6,
+              "wind_from_direction": 333.7,
+              "wind_speed": 5.0
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-07-27T14:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_pressure_at_sea_level": 1015.2,
+              "air_temperature": 32.9,
+              "cloud_area_fraction": 0.0,
+              "relative_humidity": 31.4,
+              "wind_from_direction": 333.6,
+              "wind_speed": 5.2
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-07-27T15:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_pressure_at_sea_level": 1014.7,
+              "air_temperature": 33.0,
+              "cloud_area_fraction": 0.0,
+              "relative_humidity": 30.7,
+              "wind_from_direction": 328.2,
+              "wind_speed": 5.1
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-07-27T16:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_pressure_at_sea_level": 1014.4,
+              "air_temperature": 32.7,
+              "cloud_area_fraction": 0.0,
+              "relative_humidity": 32.0,
+              "wind_from_direction": 314.7,
+              "wind_speed": 5.4
+            }
+          }
+        }
+      }
+    ]
+  }
+}

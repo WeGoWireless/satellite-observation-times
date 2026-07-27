@@ -26,5 +26,15 @@ FETCH_COUNT = 1000
 
 GEO_SOURCE = "nasa_firms"
 ATTRIBUTION = "Data courtesy of NASA FIRMS"
+# met.no publishes under CC BY 4.0, which requires the credit and the licence
+# link. Only shown while wind data is actually present.
+ATTRIBUTION_WEATHER = (
+    "Wind data from MET Norway (CC BY 4.0, creativecommons.org/licenses/by/4.0/)"
+)
+
+# met.no hard-blocks generic agents: their ToS wants the application and a
+# contact address. The version comes from the manifest so there is only ever
+# one place to bump.
+USER_AGENT = "ha-nasa-firms/{version} github.com/bangboomben/ha-nasa-firms"
 
 MAP_KEY_URL = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"

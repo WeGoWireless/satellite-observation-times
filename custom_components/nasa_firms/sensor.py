@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTRIBUTION, DOMAIN
+from .const import ATTRIBUTION, ATTRIBUTION_WEATHER, DOMAIN
 from .coordinator import FirmsCoordinator, FirmsData, NasaFirmsConfigEntry
 
 
@@ -32,22 +32,40 @@ class FirmsSensorDescription(SensorEntityDescription):
 
     value_fn: Callable[[FirmsData], Any]
     attributes_fn: Callable[[FirmsCoordinator], dict[str, Any]] | None = None
+    # Set where the sensor can carry met.no data, so their CC BY credit shows
+    # up exactly while it does.
+    uses_weather: bool = False
 
 
 def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
-    """Pointer to the closest fire, plus its bearing and compass direction.
+    """Pointer to the closest fire, its bearing, and the wind at it.
 
     The entity id is the useful part: it unlocks every attribute of that fire
     instead of only the fields duplicated here.
+
+    `wind_bearing` is the direction the wind blows *from* at the fire's own
+    coordinates, in the same frame as `bearing`, which is what makes the two
+    directly comparable. Both are plain observations — whether that is good or
+    bad news depends on terrain, fuel and how the wind turns next, so the
+    integration reports and the user judges.
     """
     clusters = coordinator.data.clusters
+    wind = coordinator.data.nearest_wind
     if not clusters:
-        return {"nearest_entity_id": None, "bearing": None, "direction": None}
+        return {
+            "nearest_entity_id": None,
+            "bearing": None,
+            "direction": None,
+            "wind_bearing": None,
+            "wind_speed": None,
+        }
     nearest = clusters[0]  # coordinator sorts by distance
     return {
         "nearest_entity_id": coordinator.entity_ids.get(nearest.id),
         "bearing": nearest.bearing,
         "direction": nearest.direction,
+        "wind_bearing": round(wind.bearing) if wind else None,
+        "wind_speed": round(wind.speed, 1) if wind else None,
     }
 
 
@@ -73,6 +91,7 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         suggested_display_precision=1,
         value_fn=lambda d: d.nearest_km,
         attributes_fn=_nearest_attributes,
+        uses_weather=True,
     ),
     FirmsSensorDescription(
         key="max_frp",
@@ -102,7 +121,6 @@ class FirmsSensor(CoordinatorEntity[FirmsCoordinator], SensorEntity):
     """One aggregate value derived from the current fire clusters."""
 
     _attr_has_entity_name = True
-    _attr_attribution = ATTRIBUTION
     entity_description: FirmsSensorDescription
 
     def __init__(
@@ -121,6 +139,13 @@ class FirmsSensor(CoordinatorEntity[FirmsCoordinator], SensorEntity):
             model="Active fire data (VIIRS/MODIS)",
             entry_type=DeviceEntryType.SERVICE,
         )
+
+    @property
+    def attribution(self) -> str:
+        """Credit met.no as well, but only while we are showing their data."""
+        if self.entity_description.uses_weather and self.coordinator.data.nearest_wind:
+            return f"{ATTRIBUTION}. {ATTRIBUTION_WEATHER}"
+        return ATTRIBUTION
 
     @property
     def native_value(self) -> Any:

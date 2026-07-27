@@ -1,4 +1,4 @@
-"""Client for the NASA FIRMS MapServer WFS GeoJSON endpoints.
+"""Clients for the NASA FIRMS MapServer WFS GeoJSON endpoints and met.no.
 
 Deliberately free of Home Assistant imports: this module is the part that
 gets lifted into a standalone PyPI package for an eventual Home Assistant
@@ -11,6 +11,8 @@ import asyncio
 import json
 import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import aiohttp
@@ -49,6 +51,30 @@ WINDOW_7D = "7days"
 
 CONFIDENCE_RANK = {"low": 0, "nominal": 1, "high": 2}
 
+# --- met.no Locationforecast 2.0 -----------------------------------------
+# Free, no API key, arbitrary coordinates. https://api.met.no/doc/TermsOfService
+# is binding; the parts that shape the code below:
+#   * identify the application with a contact address in the User-Agent
+#   * "don't repeat requests until the time indicated in the Expires header"
+#   * send If-Modified-Since so unchanged forecasts cost a 304, not a payload
+#   * "truncate all coordinates to max 4 decimals"
+#   * data is CC BY 4.0 and must be credited (see const.ATTRIBUTION_WEATHER)
+METNO_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+
+# ~1 km. Well inside met.no's 4-decimal limit, and deliberately coarser: they
+# ask callers not to re-request for minimal location changes, and a fire's
+# representative pixel shifts a few hundred metres between overpasses. The wind
+# 1 km away is the same wind, so this keeps the cache warm across cycles.
+WEATHER_COORD_DECIMALS = 2
+
+# How far the chosen forecast step may sit from the moment we ask before we
+# call it useless. Steps are hourly, so this only ever bites when a cached
+# forecast has gone properly stale.
+WEATHER_MAX_STEP_AGE = timedelta(hours=1)
+
+# met.no permanently bans clients that keep pushing after being throttled.
+WEATHER_RATE_LIMIT_BACKOFF = timedelta(hours=1)
+
 
 class FirmsError(Exception):
     """Base error talking to FIRMS."""
@@ -56,6 +82,14 @@ class FirmsError(Exception):
 
 class FirmsAuthError(FirmsError):
     """The MAP_KEY was rejected."""
+
+
+class WeatherError(Exception):
+    """Base error talking to the weather source.
+
+    Deliberately *not* a FirmsError: fires are the product and wind is a
+    nice-to-have, so the two failure modes must never be confused upstream.
+    """
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -351,3 +385,160 @@ class FirmsClient:
             acq_datetime=acq,
             daynight=props.get("daynight"),
         )
+
+
+@dataclass
+class WindObservation:
+    """Wind at one point, from the forecast step closest to the moment asked.
+
+    `bearing` is the direction the wind blows *from*, in the same 0-360 frame
+    as FirmsCluster.bearing, which is what makes the two comparable.
+    """
+
+    bearing: float  # degrees, 0 = from the north
+    speed: float  # m/s, 10 m above ground, 10-minute average
+    time: str  # ISO 8601 timestamp of the forecast step
+
+
+def _sub(node: Any, key: str) -> Any:
+    """Dict lookup that tolerates anything at all on the way down."""
+    return node.get(key) if isinstance(node, dict) else None
+
+
+def parse_wind(
+    payload: dict[str, Any], now: datetime | None = None
+) -> WindObservation | None:
+    """Read the wind for `now` out of a Locationforecast 2.0 payload.
+
+    Picks the step closest in time rather than timeseries[0]: steps sit on the
+    full hour, so at :55 the *next* one is 55 minutes closer to reality.
+
+    Returns None instead of raising on anything unexpected — a shape change at
+    met.no must degrade the wind attributes, never the fire data.
+    """
+    now = now or datetime.now(timezone.utc)
+    series = _sub(_sub(payload, "properties"), "timeseries")
+    if not isinstance(series, list):
+        return None
+    best: tuple[timedelta, dict[str, Any]] | None = None
+    for step in series:
+        if not isinstance(step, dict):
+            continue
+        try:
+            when = datetime.fromisoformat(str(step.get("time")).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        gap = abs(when - now)
+        if best is None or gap < best[0]:
+            best = (gap, step)
+    if best is None or best[0] > WEATHER_MAX_STEP_AGE:
+        return None
+    details = _sub(_sub(_sub(best[1], "data"), "instant"), "details")
+    bearing, speed = _sub(details, "wind_from_direction"), _sub(details, "wind_speed")
+    if bearing is None or speed is None:
+        return None
+    try:
+        return WindObservation(
+            bearing=float(bearing) % 360,
+            speed=float(speed),
+            time=str(best[1].get("time")),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _cache_until(headers: Any, now: datetime) -> datetime | None:
+    """Turn met.no's Expires header into a "do not ask again before" moment.
+
+    None means "no guidance given" — ask again next cycle, which is still
+    cheap because If-Modified-Since turns it into a 304.
+    """
+    raw = headers.get("Expires") if headers else None
+    if not raw:
+        return None
+    try:
+        expires = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        return None
+    if expires is None:
+        return None
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return expires if expires > now else None
+
+
+class MetNoClient:
+    """Minimal async client for met.no Locationforecast 2.0.
+
+    Holds exactly one cached forecast, because the integration only ever asks
+    about the nearest fire. Moving to a different fire drops the cache; staying
+    on the same one costs at most one request per Expires window, and a 304
+    when the forecast has not been rerun.
+    """
+
+    def __init__(self, session: aiohttp.ClientSession, user_agent: str) -> None:
+        self._session = session
+        self._user_agent = user_agent
+        self._key: tuple[float, float] | None = None
+        self._payload: dict[str, Any] | None = None
+        self._last_modified: str | None = None
+        self._valid_until: datetime | None = None
+
+    async def wind_at(
+        self, latitude: float, longitude: float, now: datetime | None = None
+    ) -> WindObservation | None:
+        """Current wind at a point, or None when the forecast has nothing to say."""
+        now = now or datetime.now(timezone.utc)
+        payload = await self._forecast(latitude, longitude, now)
+        return parse_wind(payload, now) if payload else None
+
+    async def _forecast(
+        self, latitude: float, longitude: float, now: datetime
+    ) -> dict[str, Any] | None:
+        key = (
+            round(latitude, WEATHER_COORD_DECIMALS),
+            round(longitude, WEATHER_COORD_DECIMALS),
+        )
+        if key != self._key:
+            # A different fire — nothing we hold applies to it.
+            self._key = key
+            self._payload = None
+            self._last_modified = None
+            self._valid_until = None
+        if self._valid_until is not None and now < self._valid_until:
+            return self._payload
+
+        headers = {"User-Agent": self._user_agent}
+        if self._last_modified:
+            # Must match the stored Last-Modified verbatim, per their ToS.
+            headers["If-Modified-Since"] = self._last_modified
+        try:
+            async with asyncio.timeout(30):
+                resp = await self._session.get(
+                    METNO_URL,
+                    params={"lat": f"{key[0]:.4f}", "lon": f"{key[1]:.4f}"},
+                    headers=headers,
+                )
+                body = await resp.text()
+        except (TimeoutError, aiohttp.ClientError) as err:
+            raise WeatherError(f"met.no request failed: {err}") from err
+
+        if resp.status in (403, 429):
+            # Being throttled and carrying on regardless earns a permanent ban.
+            self._valid_until = now + WEATHER_RATE_LIMIT_BACKOFF
+            raise WeatherError(f"met.no refused the request (HTTP {resp.status})")
+        if resp.status == 304:
+            self._valid_until = _cache_until(resp.headers, now)
+            return self._payload
+        if resp.status != 200:
+            raise WeatherError(f"met.no returned HTTP {resp.status}: {body[:200]}")
+        try:
+            payload = json.loads(body)
+        except ValueError as err:
+            raise WeatherError(f"met.no sent no usable JSON: {body[:200]}") from err
+        self._payload = payload
+        self._last_modified = resp.headers.get("Last-Modified")
+        self._valid_until = _cache_until(resp.headers, now)
+        return self._payload

@@ -4,9 +4,10 @@ from __future__ import annotations
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.loader import async_get_loaded_integration
 
-from .api import FirmsClient
-from .const import CONF_MAP_KEY, CONF_REGION
+from .api import FirmsClient, MetNoClient
+from .const import CONF_MAP_KEY, CONF_REGION, DOMAIN, USER_AGENT
 from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
 
 PLATFORMS = [Platform.GEO_LOCATION, Platform.SENSOR]
@@ -14,10 +15,13 @@ PLATFORMS = [Platform.GEO_LOCATION, Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> bool:
     """Set up NASA FIRMS from a config entry."""
-    client = FirmsClient(
-        async_get_clientsession(hass), entry.data[CONF_MAP_KEY], entry.data[CONF_REGION]
+    session = async_get_clientsession(hass)
+    client = FirmsClient(session, entry.data[CONF_MAP_KEY], entry.data[CONF_REGION])
+    weather = MetNoClient(
+        session,
+        USER_AGENT.format(version=async_get_loaded_integration(hass, DOMAIN).version),
     )
-    coordinator = FirmsCoordinator(hass, entry, client)
+    coordinator = FirmsCoordinator(hass, entry, client, weather)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
