@@ -177,7 +177,9 @@ never shows detections from beyond it.
 ### The map plus everything the integration knows
 
 A map answers *where*. This pairs it with the rest — how far, how strong, seen
-by which satellites, and the wind at the fire — using only built-in cards.
+by which satellites, and the wind at the fire — using only built-in cards. It
+deliberately spells out what each number means instead of printing bare values:
+`nominal` and `1.19 MW` tell you nothing until someone says what they are.
 Replace the two entity ids on the first two lines with yours and paste it in:
 
 ```yaml
@@ -193,40 +195,61 @@ cards:
     aspect_ratio: "1:1"
   - type: markdown
     content: |
-      {% set nearest = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
-      {% set count = 'sensor.firms_40_54_23_01_hotspots' %}
-      {% set km = states(nearest) %}
+      {% set s = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
+      {% set n = 'sensor.firms_40_54_23_01_hotspots' %}
+      {% set km = states(s) %}
       {%- if km in ['unknown', 'unavailable'] -%}
-      No active fire detections in range.
+      ### No active fires
+      Nothing detected in the area you are monitoring.
       {%- else -%}
-      ### {{ km }} km {{ state_attr(nearest, 'direction') }}
-      {{ states(count) }} fire(s) in range.
-      {%- set e = state_attr(nearest, 'nearest_entity_id') %}
+      ### Nearest fire: {{ km }} km away
+      It lies to the **{{ state_attr(s, 'direction') }}** of you. {{ states(n) }} fires detected in the monitored area in the last 24 hours.
+      {%- set e = state_attr(s, 'nearest_entity_id') %}
       {%- if e %}
-      {{ state_attr(e, 'frp_mw') }} MW · {{ state_attr(e, 'confidence') }} confidence · {{ state_attr(e, 'satellites') | join(' + ') }} · {{ state_attr(e, 'acquired') }}
+
+      **How strong** — {{ state_attr(e, 'frp_mw') }} MW of radiated heat, i.e. how fiercely it was burning as the satellite passed over.
+      **How certain** — {{ state_attr(e, 'confidence') }}. That is the satellite's own confidence that this is a real fire rather than a false alarm; it runs low, nominal, high.
+      **When** — {{ state_attr(e, 'acquired') }}, seen by {{ state_attr(e, 'satellites') | join(' and ') }}.
       {%- endif %}
-      {%- set fire = state_attr(nearest, 'bearing') %}
-      {%- set wind = state_attr(nearest, 'wind_bearing') %}
+      {%- set fire = state_attr(s, 'bearing') %}
+      {%- set wind = state_attr(s, 'wind_bearing') %}
+      {%- set speed = state_attr(s, 'wind_speed') %}
       {% if wind is none or fire is none %}
-      Wind at the fire is currently unavailable.
+      **Wind** — no reading for the fire's location at the moment.
       {%- else %}
-      Wind at the fire: from **{{ state_attr(nearest, 'wind_direction') }}** at {{ state_attr(nearest, 'wind_speed') }} m/s — **{{ (((wind - fire) + 180) % 360 - 180) | abs | round }}°** off the line towards you (0° = straight at you).
+      {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 45 %}**towards you**{% elif off <= 135 %}**sideways to your position**{% else %}**away from you**{% endif %}.
+      {%- if speed < 3 %}
+      At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
+      {%- endif %}
+      Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
       {%- endif %}
       {%- endif %}
 ```
 
 It renders roughly like this:
 
-> ### 9.2 km SW
-> 11 fire(s) in range.
-> 29.18 MW · nominal confidence · noaa20 + noaa21 + snpp · 2026-07-27 12:00 UTC
+> ### Nearest fire: 9.2 km away
+> It lies to the **SW** of you. 12 fires detected in the monitored area in the last 24 hours.
 >
-> Wind at the fire: from **NNW** at 6.3 m/s — **94°** off the line towards you (0° = straight at you).
+> **How strong** — 1.19 MW of radiated heat, i.e. how fiercely it was burning as the satellite passed over.
+> **How certain** — nominal. That is the satellite's own confidence that this is a real fire rather than a false alarm; it runs low, nominal, high.
+> **When** — 2026-07-26 01:32 UTC, seen by noaa21 and snpp.
+>
+> **Wind at the fire** — from the NW at 24 km/h, pushing the smoke **sideways to your position**.
+> Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
 
-Every branch is covered: no fires in range collapses it to a single line, and a
-failed weather lookup only replaces the wind sentence. **Read the angle with the
-[caveats above](#upwind-or-downwind-work-it-out-yourself) in mind** — it is
-geometry on two observations, not an all-clear.
+Every branch is covered: no fires in range collapses it to two lines, a failed
+weather lookup only replaces the wind sentence, and below roughly 3 m/s the card
+adds a line warning that the wind direction is then close to meaningless.
+
+The wind sentence puts the geometry into words — the same calculation as the
+[recipe above](#upwind-or-downwind-work-it-out-yourself), stated as *towards*,
+*sideways to* or *away from* you instead of an angle. **Read it as the
+observation it is, with the caveats from that section in mind.** "Away from you"
+describes where the air is moving at this moment; it is not an all-clear, and
+the card says so on the next line. If you would rather show the raw angle and
+draw no picture at all, swap that one line for the version in the recipe.
 
 Using [Bubble Card](https://github.com/Clooos/Bubble-Card)? The same two cards
 drop straight into a `pop-up` as its `cards:` list, so a tile on your dashboard

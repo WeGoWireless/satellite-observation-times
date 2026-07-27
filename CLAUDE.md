@@ -102,7 +102,19 @@ Thread feedback drives the roadmap:
   **Design line held and not up for revision:** facts only, no risk score, no
   "downwind, you are fine" — wind turns and slope/fuel matter as much. The
   upwind/downwind maths lives in the README as a user template, with its limits
-  spelled out. met.no's ToS shapes `MetNoClient`: identifying User-Agent with
+  spelled out.
+  **Where exactly that line sits (maintainer decision, 2026-07-27).** The README
+  dashboard card was rewritten to explain itself — a bare `nominal` or `1.19 MW`
+  means nothing to a first-time user — and its wind sentence now says the smoke
+  is pushed *towards* / *sideways to* / *away from* you instead of printing an
+  angle. That is deliberately as far as the wording goes: it describes the
+  current wind vector in words, the caveat sits on the next line, and nowhere
+  does the card say "safe", score the risk or forecast where the smoke will end
+  up. "Away from you" reads close to reassurance and was weighed on exactly that
+  point before shipping. Anything beyond it — a verdict, a colour-coded threat
+  level, a "no action needed" — stays out. The angle-based phrasing is kept in
+  the README recipe for anyone who wants no interpretation at all.
+  met.no's ToS shapes `MetNoClient`: identifying User-Agent with
   the repo as contact, `Expires` respected before any refetch,
   `If-Modified-Since` for cheap 304s, coordinates rounded to 2 decimals (~1 km,
   well inside their 4-decimal cap, and it keeps the cache warm as the
