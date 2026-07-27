@@ -22,7 +22,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # The brands repo no longer accepts custom-integration icons (HA
-          # 2026.3+ serves them from our brand/ folder instead). Keep ignoring
-          # this check until the HACS action recognizes the brand/ mechanism.
-          ignore: brands
