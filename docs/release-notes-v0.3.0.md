@@ -1,7 +1,7 @@
 # v0.3.0 — wind at the fire
 
-Text for the GitHub release and the forum thread. Delete this file once both
-are published, or keep it as the running draft for the next one.
+Text for the GitHub release. Delete this file once the release is published,
+or keep it as the running draft for the next one.
 
 ## Release body
 
@@ -60,49 +60,3 @@ configure, no custom card, and it reads the same in light and dark themes.
 
 Wind data from MET Norway, used under CC BY 4.0.
 
-## Forum post (short form)
-
-Addressed to the thread as a whole rather than to any one poster — the wind was
-asked for by more than one person, and the answer about its limits is one
-everybody reading along should see. pyspilf's post #14 has already been answered
-separately, so this one does not single him out either.
-
-> **v0.3.0 is out.** What is in it:
->
-> - **Wind at the fire.** `sensor.*_nearest_hotspot` gained `wind_bearing`,
->   `wind_direction` and `wind_speed`, measured at the fire's own coordinates
->   rather than at your house. Source is met.no Locationforecast — one request
->   per 15-minute cycle, for the nearest fire only, and if it fails the fire
->   data is unaffected.
-> - **Fires look like fires on the map.** The standard map card now draws a
->   flame marker instead of the three-letter stub it otherwise derives from the
->   entity name.
-> - **Fixed** a thread-safety error that filled the log with tracebacks on every
->   restart. Present since v0.2.0, harmless to the data, but noisy.
-> - The smoke test ships with the repo now: `python tests/smoke_test.py`, no
->   dependencies.
->
-> The README has a ready-made card that turns `bearing` and `wind_bearing` into
-> plain words — smoke pushed towards you, sideways, or away — with the limits of
-> that statement spelled out next to it.
->
-> On the wind, since it came up here from several directions: the card describes
-> it and stops there, on purpose. A detection can be 15 minutes old, the
-> forecast is hourly for a grid cell about a kilometre across, and below roughly
-> 3 m/s the direction is close to noise — the card says so itself. That is
-> enough for awareness. It is not a basis for choosing an escape route: under an
-> evacuation order the fire service and your national warning channel are the
-> authority, and nothing on a dashboard should compete with them.
->
-> **What I would like to tackle next is the map itself.** At the moment every
-> fire is the same flame, whether it is a 1 MW smoulder or a 50 MW front, and
-> the wind exists only as text on a card beside it. Now that the marker is an
-> entity picture rather than a name stub, grading it by fire radiative power
-> looks reachable, and I want to find out whether the wind can be shown *on* the
-> map at all instead of next to it. I have not yet worked out what the standard
-> map card genuinely allows, so no promises on shape or timing — but that is the
-> direction I am looking in for the next release.
->
-> If you have a view on what would actually help at a glance there, this is the
-> useful moment to say so. Everything in the last two releases came out of this
-> thread.
