@@ -119,6 +119,10 @@ observations, not a safety assessment:
   nearest the current time — hourly resolution, roughly 1 km of ground.
 - **Wind turns.** A comfortable 170° now says nothing about the next hour, and a
   wind shift is the classic way a fire surprises people.
+- **In light wind the direction barely means anything.** Below roughly 3 m/s,
+  forecast models disagree wildly: on a spot checked while writing this, two
+  independent models agreed on the speed to within 0.2 m/s and were 65° apart
+  on the direction. Weight the direction by the speed next to it.
 - **Terrain beats wind direction.** Fires run uphill far faster than downhill,
   large fires generate their own wind, and slope, fuel and humidity matter as
   much as the direction the smoke is drifting today.
