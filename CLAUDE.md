@@ -20,6 +20,10 @@ Assistant Core submission. Donation-funded ("coffee tip jar"), never paid.
   `qld_bushfire_feed`, `geo_json_events`) — same patterns, feed-specific value.
 - The MAP_KEY lives in config entry data only. Never put it in entry titles,
   logs, code, docs, or screenshots.
+- Brand icon ships in `custom_components/nasa_firms/brand/` (icon.png 256,
+  icon@2x.png 512) — the HA 2026.3+ mechanism. The home-assistant/brands repo
+  no longer accepts custom-integration icons (our PR #10856 was auto-closed);
+  do not resubmit there.
 
 ## Origin & feedback backlog
 
