@@ -49,10 +49,21 @@ Thread feedback drives the roadmap:
   without parsing raw FRP.
 - The nearest-hotspot sensor carries only the distance, with no pointer back to
   the fire it came from (post #12) → **open, v0.2 candidate, cheap**: expose
-  `nearest_entity_id` on that sensor — the asker's own suggestion and better
-  than pre-computing fields, since it unlocks every attribute of that fire
-  rather than the ones we guessed. Add `bearing` + cardinal direction alongside
-  it (second requester). Removes ~15 lines of Jinja from every user's dashboard.
+  exactly three attributes — `nearest_entity_id` (the asker's own suggestion,
+  better than pre-computing fields since it unlocks the whole entity),
+  `bearing` and a cardinal direction (two requesters; the great-circle formula
+  is easy to get wrong by hand — see the `cos(radians)` confusion in this very
+  thread). Deliberately **not** `latitude`/`longitude` on the sensor: reachable
+  through the entity id, so they would be redundant.
+- **Attributes stay non-configurable** (maintainer decision, 2026-07-28). A
+  multi-select "which attributes do you want" in the config flow was considered
+  and rejected: attributes are invisible until looked for and cost nothing,
+  optional ones force an "if you enabled this" caveat onto every documented
+  template, and HA convention reserves configuration for things that change
+  behaviour or cost (poll interval, filters, satellite count = API calls) —
+  Core review would flag it. Recorder growth is the one real concern and users
+  can already exclude attributes via `recorder:`. The answer to "is this getting
+  bloated?" is to add fewer attributes, not to make them switchable.
 - **Wind direction — parked, open question put to the community** (2026-07-28).
   First ruled out because the obvious implementation uses `wind_bearing` from
   the user's own `weather.*` entity, i.e. the wind at *their* house applied to a
