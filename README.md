@@ -55,6 +55,16 @@ Per config entry:
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight` |
 
+**The sensor ids follow your Home Assistant language.** Home Assistant builds an
+entity id from the entity's *translated* name at the moment it is created, so
+the ids above are what an English instance gets. A German one, for example, ends
+up with `sensor.<name>_nachster_hotspot` and
+`sensor.<name>_max_feuerstrahlungsleistung`. Every example in this README uses
+the English form — check Developer tools → States for the ids on your own
+instance before copying one, or rename the entities to taste. The fire entities
+are unaffected: their names are not translated, so they are
+`geo_location.wildfire_hotspot_<lat>_<lon>` everywhere.
+
 ### Pointing at the nearest fire
 
 The nearest-hotspot sensor carries the id of the fire entity it is reporting, so
@@ -180,7 +190,8 @@ A map answers *where*. This pairs it with the rest — how far, how strong, seen
 by which satellites, and the wind at the fire — using only built-in cards. It
 deliberately spells out what each number means instead of printing bare values:
 `nominal` and `1.19 MW` tell you nothing until someone says what they are.
-Replace the two entity ids on the first two lines with yours and paste it in:
+Replace the two entity ids on the first two lines with yours — mind that they
+[follow your Home Assistant language](#entities) — and paste it in:
 
 ```yaml
 type: vertical-stack
