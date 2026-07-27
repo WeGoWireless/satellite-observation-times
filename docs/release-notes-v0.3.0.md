@@ -62,9 +62,10 @@ Wind data from MET Norway, used under CC BY 4.0.
 
 ## Forum post (short form)
 
-Post it as a reply to IOT7712's post #16, the most recent in the thread.
-pyspilf's post #14 has already been answered separately, so this one does not
-need to address him again.
+Addressed to the thread as a whole rather than to any one poster — the wind was
+asked for by more than one person, and the answer about its limits is one
+everybody reading along should see. pyspilf's post #14 has already been answered
+separately, so this one does not single him out either.
 
 > **v0.3.0 is out.** What is in it:
 >
@@ -85,9 +86,23 @@ need to address him again.
 > plain words — smoke pushed towards you, sideways, or away — with the limits of
 > that statement spelled out next to it.
 >
-> @IOT7712, briefly on #16: the card describes the wind and stops there, on
-> purpose. A detection can be 15 minutes old, the forecast is hourly for a grid
-> cell about a kilometre across, and below roughly 3 m/s the direction is close
-> to noise — the card says so itself. That is enough for awareness. It is not a
-> basis for choosing an escape route: under an evacuation order the fire service
-> and your official warning channel are the authority.
+> On the wind, since it came up here from several directions: the card describes
+> it and stops there, on purpose. A detection can be 15 minutes old, the
+> forecast is hourly for a grid cell about a kilometre across, and below roughly
+> 3 m/s the direction is close to noise — the card says so itself. That is
+> enough for awareness. It is not a basis for choosing an escape route: under an
+> evacuation order the fire service and your national warning channel are the
+> authority, and nothing on a dashboard should compete with them.
+>
+> **What I would like to tackle next is the map itself.** At the moment every
+> fire is the same flame, whether it is a 1 MW smoulder or a 50 MW front, and
+> the wind exists only as text on a card beside it. Now that the marker is an
+> entity picture rather than a name stub, grading it by fire radiative power
+> looks reachable, and I want to find out whether the wind can be shown *on* the
+> map at all instead of next to it. I have not yet worked out what the standard
+> map card genuinely allows, so no promises on shape or timing — but that is the
+> direction I am looking in for the next release.
+>
+> If you have a view on what would actually help at a glance there, this is the
+> useful moment to say so. Everything in the last two releases came out of this
+> thread.
