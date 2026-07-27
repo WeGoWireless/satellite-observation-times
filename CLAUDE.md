@@ -96,6 +96,16 @@ Thread feedback drives the roadmap:
   satellite data cannot back, since wind shifts and slope/fuel matter as much.
   Asked pyspilf directly in the thread for his read before deciding. Either way
   `bearing` ships first as the enabler.
+- **Two config entries share one `geo_location` source** → **open, found in
+  live use 2026-07-27**: every fire entity carries `source: nasa_firms`
+  regardless of which entry produced it, and a map card's
+  `geo_location_sources` has no per-entry filter — so a second entry's fires
+  land on the first entry's map. Worse for anyone hand-rolling a list: the
+  entity *state* is the distance from **its own** entry's origin, so a fire
+  from the other entry reads as a plausible-looking wrong number. Options:
+  per-entry source strings (breaks documented `nasa_firms` configs), or an
+  entry-identifying attribute so `auto-entities` can filter. Document the trap
+  either way — it is invisible until someone adds a second location.
 - Cluster IDs are `lat/lon` rounded to 2 decimals (`api.py`), so a centroid
   drifting across a 0.01° boundary destroys the entity and creates a new one
   (history lost) → **open, hygiene**: carry the ID forward by matching new
