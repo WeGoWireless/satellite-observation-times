@@ -19,6 +19,12 @@ and fixes what that approach structurally can't:
 | Polling | every 5 min | every 15 min, matching NASA's refresh cadence |
 | Count / nearest-distance sensors | template DIY | built in, plus max FRP |
 
+![Deduplicated FIRMS fire detections on the standard Home Assistant map card](assets/map-live-fires.png)
+
+*Live screenshot (dark theme, standard map card): deduplicated VIIRS detections
+during the July 2026 fires in southern France — each marker is one logical fire,
+merged from up to three satellites.*
+
 ## Installation
 
 **HACS** (recommended): HACS → Integrations → ⋮ → *Custom repositories* →
