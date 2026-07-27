@@ -115,8 +115,8 @@ exactly when the two raw numbers are close:
 observations, not a safety assessment:
 
 - `wind_speed` and `wind_bearing` are a **forecast** for the fire's grid cell,
-  not a measurement at the flame front, and they are interpolated to the nearest
-  hour.
+  not a measurement at the flame front, and they come from the forecast step
+  nearest the current time — hourly resolution, roughly 1 km of ground.
 - **Wind turns.** A comfortable 170° now says nothing about the next hour, and a
   wind shift is the classic way a fire surprises people.
 - **Terrain beats wind direction.** Fires run uphill far faster than downhill,
