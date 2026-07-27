@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.const import UnitOfLength
@@ -24,6 +25,17 @@ async def async_setup_entry(
     tracked: set[str] = set()
 
     @callback
+    def _publish_entity_ids(_now: datetime) -> None:
+        """Re-render the aggregate sensors once our entity ids exist.
+
+        Must carry @callback: async_call_later hands a plain function to the
+        executor, and the state writes downstream of async_update_listeners()
+        then happen off the event loop, which Home Assistant rejects outright
+        for custom integrations.
+        """
+        coordinator.async_update_listeners()
+
+    @callback
     def _sync() -> None:
         new = [
             FirmsFireEntity(coordinator, cluster_id, tracked.discard)
@@ -38,7 +50,7 @@ async def async_setup_entry(
             # aggregate sensors shortly afterwards so `nearest_entity_id` is
             # populated right away instead of staying None until the next
             # 15-minute refresh.
-            async_call_later(hass, 2, lambda _now: coordinator.async_update_listeners())
+            async_call_later(hass, 2, _publish_entity_ids)
 
     entry.async_on_unload(coordinator.async_add_listener(_sync))
     _sync()

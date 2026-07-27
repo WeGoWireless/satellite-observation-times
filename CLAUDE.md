@@ -54,6 +54,11 @@ Thread feedback drives the roadmap:
   after HA adds the entities, so the geo_location platform nudges the
   coordinator listeners ~2 s after adding — without that the sensor renders
   before any id exists and the attribute stays `None` for a full refresh cycle.
+  That nudge shipped with a bug fixed in v0.3.0: the `async_call_later` target
+  needs `@callback`, otherwise HA runs it in an executor thread and every state
+  write behind it raises `async_write_ha_state from a thread other than the
+  event loop`. Any future `async_call_later`/`async_track_*` target here needs
+  the same decorator.
 - **Attributes stay non-configurable** (maintainer decision, 2026-07-28). A
   multi-select "which attributes do you want" in the config flow was considered
   and rejected: attributes are invisible until looked for and cost nothing,

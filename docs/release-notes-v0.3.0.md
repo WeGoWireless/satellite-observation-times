@@ -34,6 +34,12 @@ as their terms of service require. If the lookup fails, the two attributes go
 
 ### Also in this release
 
+- **Fixed a thread-safety error that filled the log on every restart.** The
+  2-second nudge that publishes `nearest_entity_id` ran off the event loop, so
+  Home Assistant rejected the state writes behind it with
+  `calls async_write_ha_state from a thread other than the event loop`. Present
+  since v0.2.0 and harmless to the data, but noisy — worth updating for on its
+  own.
 - `tests/smoke_test.py` is now part of the repository — no dependencies, run it
   with `python tests/smoke_test.py`
 - Fixed: a malformed weather payload could raise instead of degrading quietly
