@@ -47,13 +47,22 @@ Thread feedback drives the roadmap:
   `geo_location` entities. Fallback/companion: a plain `severity` attribute
   (low/moderate/high/extreme) so card-mod and auto-entities users can style
   without parsing raw FRP.
-- The nearest-hotspot sensor carries only the distance, so getting the nearest
-  fire's coordinates needs a template walk over the `geo_location` entities
-  (post #12) → **open, v0.2 candidate, cheap**: expose `latitude`, `longitude`,
-  `bearing` and a cardinal direction as attributes on that sensor. The asker
-  wants them for a direction display and LocationIQ reverse geocoding; the
-  per-fire entities already carry lat/lon, so this is pure convenience — but it
-  removes ~15 lines of Jinja from every user's dashboard.
+- The nearest-hotspot sensor carries only the distance, with no pointer back to
+  the fire it came from (post #12) → **open, v0.2 candidate, cheap**: expose
+  `nearest_entity_id` on that sensor — the asker's own suggestion and better
+  than pre-computing fields, since it unlocks every attribute of that fire
+  rather than the ones we guessed. Add `bearing` + cardinal direction alongside
+  it (second requester). Removes ~15 lines of Jinja from every user's dashboard.
+- **Wind direction: deliberately NOT an integration feature** (maintainer
+  decision, 2026-07-28). Technically trivial — `wind_bearing` is free on any
+  `weather.*` entity — but it would be the wind at the *user's* location applied
+  to a fire tens of km away, in terrain where it can differ completely, and fire
+  spread also depends on slope, fuel and humidity. Worst case the integration
+  implies "downwind, you're safe", the wind turns, and someone doesn't act.
+  This integration reports observations, not risk predictions; cross-entity
+  logic belongs in the user's own automations (and would draw fire in a Core
+  review). Ship `bearing` as the enabler and document the upwind/downwind
+  comparison as a README recipe with its limits stated.
 - Cluster IDs are `lat/lon` rounded to 2 decimals (`api.py`), so a centroid
   drifting across a 0.01° boundary destroys the entity and creates a new one
   (history lost) → **open, hygiene**: carry the ID forward by matching new
