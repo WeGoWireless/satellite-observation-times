@@ -62,16 +62,32 @@ Wind data from MET Norway, used under CC BY 4.0.
 
 ## Forum post (short form)
 
-> v0.3.0 is out, and it is the wind one. `sensor.*_nearest_hotspot` now carries
-> `wind_bearing`, `wind_direction` and `wind_speed` measured at the fire's own
-> coordinates rather than at your house — @pyspilf, this is your post #14. Since
-> `bearing` already ships alongside, comparing the two is one line of Jinja; the
-> README has the recipe together with an honest list of what it does not tell
-> you. No risk score and no "you're fine" verdict, on purpose: wind shifts, and
-> terrain and fuel matter as much as direction. One met.no request per 15-minute
-> cycle for the nearest fire only, and if it fails the fire data carries on
-> untouched.
+Post it as a reply to IOT7712's post #16, the most recent in the thread.
+pyspilf's post #14 has already been answered separately, so this one does not
+need to address him again.
+
+> **v0.3.0 is out.** What is in it:
 >
-> Also in this one: the fires finally look like fires on the map card — a flame
-> marker instead of the three-letter name stub — and a restart no longer fills
-> the log with thread-safety tracebacks.
+> - **Wind at the fire.** `sensor.*_nearest_hotspot` gained `wind_bearing`,
+>   `wind_direction` and `wind_speed`, measured at the fire's own coordinates
+>   rather than at your house. Source is met.no Locationforecast — one request
+>   per 15-minute cycle, for the nearest fire only, and if it fails the fire
+>   data is unaffected.
+> - **Fires look like fires on the map.** The standard map card now draws a
+>   flame marker instead of the three-letter stub it otherwise derives from the
+>   entity name.
+> - **Fixed** a thread-safety error that filled the log with tracebacks on every
+>   restart. Present since v0.2.0, harmless to the data, but noisy.
+> - The smoke test ships with the repo now: `python tests/smoke_test.py`, no
+>   dependencies.
+>
+> The README has a ready-made card that turns `bearing` and `wind_bearing` into
+> plain words — smoke pushed towards you, sideways, or away — with the limits of
+> that statement spelled out next to it.
+>
+> @IOT7712, briefly on #16: the card describes the wind and stops there, on
+> purpose. A detection can be 15 minutes old, the forecast is hourly for a grid
+> cell about a kilometre across, and below roughly 3 m/s the direction is close
+> to noise — the card says so itself. That is enough for awareness. It is not a
+> basis for choosing an escape route: under an evacuation order the fire service
+> and your official warning channel are the authority.
