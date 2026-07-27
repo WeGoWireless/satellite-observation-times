@@ -33,8 +33,42 @@ Thread feedback drives the roadmap:
 
 - BBOX `cos(radians(lat))` footgun → solved (radius + map picker)
 - Confidence/FRP invisible to `geo_json_events` → solved (filters + attributes)
-- Persistent heat sources (factories) cause false alarms → **open, v0.2**:
-  auto-ignore locations detected across many consecutive days
+- 5-min polling vs. NASA's 15-min refresh → solved (`UPDATE_INTERVAL`)
+- Persistent heat sources (factories) cause false alarms → **open, v0.2 lead
+  candidate**: auto-ignore locations detected across many consecutive days,
+  plus manual ignore zones (coordinate + radius) in the options flow. Raised
+  independently by two users (posts #4/#5, #7) — the strongest differentiator
+  left over the plain YAML setup.
+- Map markers carry no intensity signal → **open, v0.2 candidate**: colour by
+  FRP. A user solved it with Node-RED + nathan.gs map-card + auto-entities +
+  z-index layering (post #7); we should manage it natively. Idea: per-cluster
+  `entity_picture` as a colour-graded SVG data URI, which the core map card
+  renders in the marker — needs verifying that it actually applies to
+  `geo_location` entities. Fallback/companion: a plain `severity` attribute
+  (low/moderate/high/extreme) so card-mod and auto-entities users can style
+  without parsing raw FRP.
+- The nearest-hotspot sensor carries only the distance, so getting the nearest
+  fire's coordinates needs a template walk over the `geo_location` entities
+  (post #12) → **open, v0.2 candidate, cheap**: expose `latitude`, `longitude`,
+  `bearing` and a cardinal direction as attributes on that sensor. The asker
+  wants them for a direction display and LocationIQ reverse geocoding; the
+  per-fire entities already carry lat/lon, so this is pure convenience — but it
+  removes ~15 lines of Jinja from every user's dashboard.
+- Cluster IDs are `lat/lon` rounded to 2 decimals (`api.py`), so a centroid
+  drifting across a 0.01° boundary destroys the entity and creates a new one
+  (history lost) → **open, hygiene**: carry the ID forward by matching new
+  clusters against the previous cycle within the cluster radius.
+
+**Evaluated and rejected:** Gridware/GridScope pole sensors as an extra alert
+source (posts #8/#10). B2B hardware sold to utilities, no public developer
+API, deployments concentrated in the US; the Spanish user's own utility
+confirmed no API access. Not a data channel we can consume — do not revisit
+without new evidence.
+
+**Sequencing (maintainer decision, 2026-07-27):** none of the open items get
+built yet. v0.1.2 has been public for a day; wait for real installation
+feedback before committing to a v0.2 scope, so the roadmap follows actual
+usage instead of two forum posts.
 
 ## Conventions
 
