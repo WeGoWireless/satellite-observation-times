@@ -111,6 +111,10 @@ Red Cross / civil protection. This project stays free either way.
 
 ## Credits & disclaimer
 
+This integration was developed with the supporting help of AI tooling
+(Claude Code). All changes are reviewed, tested against a live Home Assistant
+instance, and maintained by a human.
+
 Fire data courtesy of NASA FIRMS. This project is not affiliated with or
 endorsed by NASA. We acknowledge the use of data and imagery from NASA's Fire
 Information for Resource Management System (FIRMS), part of NASA's Earth

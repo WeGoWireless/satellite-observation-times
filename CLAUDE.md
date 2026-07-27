@@ -36,6 +36,9 @@ Thread feedback drives the roadmap:
 
 - Code, comments, commit messages, README: English. Conversation with the
   maintainer: German.
+- No AI co-author trailers in commit messages (maintainer decision,
+  2026-07-27). AI assistance is disclosed once, in the README's
+  "Credits & disclaimer" section.
 - **Editorial rule (all channels — README, forum, Ko-fi, release notes):**
   never use active disasters as urgency marketing. The personal
   vacation-home-in-Greece story is the anchor; ongoing fires may be mentioned
