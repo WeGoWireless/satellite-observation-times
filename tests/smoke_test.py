@@ -148,6 +148,9 @@ def test_parse_wind() -> None:
     check("wind bearing comes from wind_from_direction", near(wind.bearing, 333.7))
     check("wind speed comes through in m/s", near(wind.speed, 5.0))
 
+    # The sensor renders this bearing as a compass point next to the degrees.
+    check("wind bearing maps onto a compass point", api.cardinal(wind.bearing) == "NNW")
+
     earlier = api.parse_wind(FIXTURE, datetime(2026, 7, 27, 12, 5, tzinfo=UTC))
     check("earlier ask picks the earlier step", earlier.time == "2026-07-27T12:00:00Z")
 

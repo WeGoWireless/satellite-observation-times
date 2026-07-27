@@ -69,8 +69,12 @@ Thread feedback drives the roadmap:
   can already exclude attributes via `recorder:`. The answer to "is this getting
   bloated?" is to add fewer attributes, not to make them switchable.
 - ~~Wind direction at the fire~~ → **DONE in v0.3.0** (post #14). Ships
-  `wind_bearing` and `wind_speed` on the nearest sensor, from met.no
-  Locationforecast, one request per 15-min cycle for the nearest cluster only.
+  `wind_bearing`, `wind_direction` and `wind_speed` on the nearest sensor, from
+  met.no Locationforecast, one request per 15-min cycle for the nearest cluster
+  only. Degrees *and* compass point on purpose, mirroring `bearing`/`direction`:
+  the degrees are what the upwind/downwind template needs, the compass point is
+  what goes on a dashboard — dropping the degrees would break the feature's
+  actual purpose.
   **Design line held and not up for revision:** facts only, no risk score, no
   "downwind, you are fine" — wind turns and slope/fuel matter as much. The
   upwind/downwind maths lives in the README as a user template, with its limits

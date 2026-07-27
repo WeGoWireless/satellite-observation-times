@@ -12,6 +12,8 @@ coordinates**:
 
 - `wind_bearing` — the direction the wind is blowing *from*, in degrees, in the
   same frame as the existing `bearing`
+- `wind_direction` — the same as a 16-point compass abbreviation (`SW`, `NNE`),
+  for dashboards that would rather not show a number
 - `wind_speed` — in m/s at 10 m above ground
 
 Requested by @pyspilf in the community thread, who was building the same thing

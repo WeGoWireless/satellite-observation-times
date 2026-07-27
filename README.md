@@ -51,7 +51,7 @@ Per config entry:
 | Entity | Meaning |
 |---|---|
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors) |
-| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_speed` |
+| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight` |
 
@@ -83,7 +83,11 @@ across a valley:
 | Attribute | Meaning |
 |---|---|
 | `wind_bearing` | Direction the wind is blowing **from**, in degrees (0 = from the north) |
+| `wind_direction` | The same, as a 16-point compass abbreviation (`SW`, `NNE`, …) |
 | `wind_speed` | Wind speed in **m/s** at 10 m above ground (multiply by 3.6 for km/h) |
+
+`wind_direction` is the one to put on a dashboard; `wind_bearing` is the one to
+calculate with, exactly like `direction` and `bearing` for the fire itself.
 
 Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
 One request per 15-minute cycle, for the nearest fire only, cached according to
@@ -106,7 +110,8 @@ exactly when the two raw numbers are close:
   {# 0 deg = wind pushing along the fire-to-you line, 180 deg = the other way #}
   {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
   Fire {{ states(s) }} km {{ state_attr(s, 'direction') }},
-  wind {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,
+  wind from {{ state_attr(s, 'wind_direction') }} at
+  {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,
   {{ delta }}° off the line towards you.
 {% endif %}
 ```

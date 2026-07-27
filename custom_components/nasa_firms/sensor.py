@@ -17,6 +17,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import cardinal
 from .const import ATTRIBUTION, ATTRIBUTION_WEATHER, DOMAIN
 from .coordinator import FirmsCoordinator, FirmsData, NasaFirmsConfigEntry
 
@@ -45,9 +46,13 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
 
     `wind_bearing` is the direction the wind blows *from* at the fire's own
     coordinates, in the same frame as `bearing`, which is what makes the two
-    directly comparable. Both are plain observations — whether that is good or
-    bad news depends on terrain, fuel and how the wind turns next, so the
-    integration reports and the user judges.
+    directly comparable — the degrees are what any upwind/downwind template
+    needs. `wind_direction` is the same value as a compass point, mirroring
+    `bearing`/`direction`, because that is what reads well on a dashboard.
+
+    All of them are plain observations — whether that is good or bad news
+    depends on terrain, fuel and how the wind turns next, so the integration
+    reports and the user judges.
     """
     clusters = coordinator.data.clusters
     wind = coordinator.data.nearest_wind
@@ -57,6 +62,7 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
             "bearing": None,
             "direction": None,
             "wind_bearing": None,
+            "wind_direction": None,
             "wind_speed": None,
         }
     nearest = clusters[0]  # coordinator sorts by distance
@@ -65,6 +71,7 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
         "bearing": nearest.bearing,
         "direction": nearest.direction,
         "wind_bearing": round(wind.bearing) if wind else None,
+        "wind_direction": cardinal(wind.bearing) if wind else None,
         "wind_speed": round(wind.speed, 1) if wind else None,
     }
 
