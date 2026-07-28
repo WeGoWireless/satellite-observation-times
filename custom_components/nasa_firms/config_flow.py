@@ -230,6 +230,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
     """Adjust filters and ignore zones without re-adding the entry."""
 
     def __init__(self) -> None:
+        super().__init__()
         # Working copy. Options are written as a whole, so every step has to
         # carry the others along or they would be dropped on save.
         self._options: dict[str, Any] | None = None
@@ -292,15 +293,29 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             description_placeholders={"zones": self._zone_summary()},
         )
 
+    @staticmethod
+    def _zone_label(zone: dict[str, Any]) -> str:
+        """Describe one zone, tolerating a hand-edited or partial entry.
+
+        `in_ignored_zone` already skips zones it cannot read; the options flow
+        has to survive them too, or a single bad entry would make the dialog
+        unopenable — and therefore the bad entry unremovable.
+        """
+        name = str(zone.get(CONF_NAME) or "Unnamed zone")
+        try:
+            return (
+                f"{name} — {float(zone[CONF_LATITUDE]):.4f}/"
+                f"{float(zone[CONF_LONGITUDE]):.4f}, "
+                f"{float(zone[CONF_RADIUS]) / 1000:.1f} km"
+            )
+        except (KeyError, TypeError, ValueError):
+            return f"{name} — incomplete, has no effect"
+
     def _zone_summary(self) -> str:
         """Human-readable list for the menu description."""
         if not self.zones:
             return "None yet."
-        return "\n".join(
-            f"- {z['name']} — {z['latitude']:.4f}/{z['longitude']:.4f}, "
-            f"{z['radius'] / 1000:.1f} km"
-            for z in self.zones
-        )
+        return "\n".join(f"- {self._zone_label(z)}" for z in self.zones)
 
     async def async_step_add_zone(
         self, user_input: dict[str, Any] | None = None
@@ -358,13 +373,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             ]
             return await self.async_step_zones()
         options = [
-            SelectOptionDict(
-                value=str(i),
-                label=(
-                    f"{z['name']} ({z['latitude']:.4f}/{z['longitude']:.4f}, "
-                    f"{z['radius'] / 1000:.1f} km)"
-                ),
-            )
+            SelectOptionDict(value=str(i), label=self._zone_label(z))
             for i, z in enumerate(self.zones)
         ]
         return self.async_show_form(

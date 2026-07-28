@@ -159,8 +159,9 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
 
         # Client-side filtering: exact radius (the bbox is a superset),
         # ignore zones, minimum confidence, minimum fire radiative power.
-        # Zones are re-read every cycle so an edit in the options flow takes
-        # effect on the next refresh rather than on the next restart.
+        # Read per cycle rather than cached in __init__: an options edit does
+        # reload the entry (see __init__.py), but reading them here means this
+        # holds regardless of how the zones got there.
         zones = self.config_entry.options.get(CONF_IGNORE_ZONES) or []
         within: list = []
         ignored = 0

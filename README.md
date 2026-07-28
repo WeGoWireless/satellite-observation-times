@@ -97,7 +97,9 @@ the merged detections, which moves a little every refresh as satellites add and
 drop pixels. Each cycle is matched against the previous one so an existing fire
 hands its id down and stays the same entity, history included. Fires close
 together keep their own ids — candidates are paired nearest-first and no id is
-ever handed out twice.
+ever handed out twice. The matching starts over whenever the entry reloads
+(a Home Assistant restart, or saving the options), but a fire that has not
+drifted in the meantime gets the same id back from its coordinates anyway.
 
 ## Recipes
 
