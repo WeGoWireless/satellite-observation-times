@@ -71,7 +71,7 @@ The nearest-hotspot sensor carries the id of the fire entity it is reporting, so
 you can read any of that fire's attributes without searching for it yourself:
 
 ```jinja
-{% set e = state_attr('sensor.firms_40_54_23_01_nearest_hotspot', 'nearest_entity_id') %}
+{% set e = state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'nearest_entity_id') %}
 {{ state_attr(e, 'frp_mw') }} MW, {{ state_attr(e, 'confidence') }} confidence,
 seen by {{ state_attr(e, 'satellites') | join(' + ') }}
 ```
@@ -80,8 +80,8 @@ seen by {{ state_attr(e, 'satellites') | join(' + ') }}
 great-circle values, so they stay correct at high latitudes:
 
 ```jinja
-Fire {{ states('sensor.firms_40_54_23_01_nearest_hotspot') }} km
-{{ state_attr('sensor.firms_40_54_23_01_nearest_hotspot', 'direction') }}
+Fire {{ states('sensor.firms_43_60_3_90_nearest_hotspot') }} km
+{{ state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'direction') }}
 ```
 
 ### Wind at the fire
@@ -114,7 +114,7 @@ the same 180° on both sides, so the smoke travels along your line of sight
 exactly when the two raw numbers are close:
 
 ```jinja
-{% set s = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
+{% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
 {% set fire = state_attr(s, 'bearing') %}
 {% set wind = state_attr(s, 'wind_bearing') %}
 {% if fire is not none and wind is not none %}
@@ -206,8 +206,8 @@ cards:
     aspect_ratio: "1:1"
   - type: markdown
     content: |
-      {% set s = 'sensor.firms_40_54_23_01_nearest_hotspot' %}
-      {% set n = 'sensor.firms_40_54_23_01_hotspots' %}
+      {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
+      {% set n = 'sensor.firms_43_60_3_90_hotspots' %}
       {% set km = states(s) %}
       {%- if km in ['unknown', 'unavailable'] -%}
       ### No active fires
@@ -276,7 +276,7 @@ opens the full picture.
 alias: "Wildfire proximity warning"
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.firms_40_54_23_01_nearest_hotspot
+    entity_id: sensor.firms_43_60_3_90_nearest_hotspot
     below: 15
 actions:
   - action: notify.mobile_app_your_phone
