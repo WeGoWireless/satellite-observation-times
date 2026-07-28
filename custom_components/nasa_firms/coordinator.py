@@ -116,6 +116,11 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # Home Assistant has assigned them. Lets the aggregate sensors point at
         # the actual fire entity instead of guessing its slug.
         self.entity_ids: dict[str, str] = {}
+        # Last cycle's clusters, so a fire keeps its id — and with it its
+        # entity and its history — while its centroid drifts. Memory only:
+        # after a restart the entities are rebuilt anyway, and every fire that
+        # has not drifted since gets the same id from its coordinates.
+        self._previous_clusters: list[FirmsCluster] = []
 
     async def _async_update_data(self) -> FirmsData:
         results = await asyncio.gather(
@@ -166,9 +171,16 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
 
         data.raw_detections = len(within)
         data.clusters = cluster_hotspots(
-            within, CLUSTER_RADIUS_KM, (self.latitude, self.longitude)
+            within,
+            CLUSTER_RADIUS_KM,
+            (self.latitude, self.longitude),
+            self._previous_clusters,
         )
         data.clusters_by_id = {c.id: c for c in data.clusters}
+        # Only reached when the fetch succeeded — a failed cycle raises above
+        # and leaves the previous set intact, so a single outage does not
+        # renumber every fire.
+        self._previous_clusters = data.clusters
         if data.clusters:
             data.nearest_wind = await self._async_wind(data.clusters[0])
         return data

@@ -231,10 +231,52 @@ def _conf_rank(conf: str | None) -> int:
     return CONFIDENCE_RANK.get(conf, -1) if conf else -1
 
 
+def _carry_ids(
+    clusters: list[FirmsCluster],
+    previous: list[FirmsCluster],
+    radius_km: float,
+) -> dict[int, str]:
+    """Match this cycle's fires onto the last one's and hand the ids down.
+
+    An id is derived from the centroid rounded to 0.01°, so a fire whose
+    centroid wanders across one of those invisible grid lines — which it does
+    whenever a satellite adds or drops a detection — would otherwise be
+    destroyed and recreated as a different entity. History gone, and anything
+    pointing at the old entity id silently pointing at nothing.
+
+    Pairs are considered only within the same radius that defines a cluster in
+    the first place, and are consumed shortest-first so the nearest candidate
+    wins: fires around Bordeaux sit as little as a kilometre apart, and a
+    greedy pass in arbitrary order could hand a fire its neighbour's identity.
+    Each side is used at most once, so ids can never be duplicated here.
+    """
+    pairs: list[tuple[float, int, int]] = []
+    for i, new in enumerate(clusters):
+        for j, old in enumerate(previous):
+            gap = haversine_km(
+                new.latitude, new.longitude, old.latitude, old.longitude
+            )
+            if gap <= radius_km:
+                pairs.append((gap, i, j))
+    # (gap, i, j) sorts deterministically even when two gaps are identical.
+    pairs.sort()
+    used_new: set[int] = set()
+    used_old: set[int] = set()
+    carried: dict[int, str] = {}
+    for _gap, i, j in pairs:
+        if i in used_new or j in used_old:
+            continue
+        used_new.add(i)
+        used_old.add(j)
+        carried[i] = previous[j].id
+    return carried
+
+
 def cluster_hotspots(
     hotspots_with_distance: list[tuple[FirmsHotspot, float]],
     cluster_radius_km: float = 1.0,
     origin: tuple[float, float] | None = None,
+    previous: list[FirmsCluster] | None = None,
 ) -> list[FirmsCluster]:
     """Greedy dedupe: detections within cluster_radius_km collapse into one fire.
 
@@ -242,6 +284,10 @@ def cluster_hotspots(
     slightly different pixel centers; without this, three-satellite setups
     show duplicate markers. Sorting by FRP first makes the strongest
     detection the cluster representative and the greedy pass deterministic.
+
+    `previous` is the last cycle's result. Pass it and a fire keeps its id
+    while it drifts; leave it out and every id is derived fresh, which is the
+    behaviour this function had before.
     """
     ordered = sorted(hotspots_with_distance, key=lambda hd: -(hd[0].frp or 0.0))
     raw: list[dict[str, Any]] = []
@@ -306,13 +352,25 @@ def cluster_hotspots(
             )
         )
     clusters.sort(key=lambda c: c.distance_km)
+
+    carried = _carry_ids(clusters, previous, cluster_radius_km) if previous else {}
+    for index, cluster_id in carried.items():
+        clusters[index].id = cluster_id
+
     # Two distinct clusters can round to the same 0.01° id — disambiguate.
-    seen: dict[str, int] = {}
-    for cluster in clusters:
-        n = seen.get(cluster.id, 0)
-        seen[cluster.id] = n + 1
-        if n:
-            cluster.id = f"{cluster.id}#{n + 1}"
+    # Carried ids are reserved first and never renamed: they are the ones an
+    # existing entity is already living under, so a fresh id has to give way,
+    # not the other way round.
+    seen: set[str] = {clusters[i].id for i in carried}
+    for index, cluster in enumerate(clusters):
+        if index in carried:
+            continue
+        base = cluster.id
+        suffix = 1
+        while cluster.id in seen:
+            suffix += 1
+            cluster.id = f"{base}#{suffix}"
+        seen.add(cluster.id)
     return clusters
 
 

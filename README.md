@@ -72,6 +72,16 @@ instance before copying one, or rename the entities to taste. The fire entities
 are unaffected: their names are not translated, so they are
 `geo_location.wildfire_hotspot_<lat>_<lon>` everywhere.
 
+**A fire keeps its entity while it drifts.** The id comes from the centroid of
+the merged detections, and that centroid moves a little every refresh as
+satellites add and drop pixels. Each cycle is therefore matched against the
+previous one and an existing fire hands its id down, so it stays the same
+entity — with its history, and with any automation pointing at it still
+pointing at it. Two fires close together keep their own ids: candidates are
+paired nearest-first, and no id is ever handed out twice. The one gap is a
+Home Assistant restart, which starts the matching over; a fire that has not
+drifted since gets the same id back from its coordinates anyway.
+
 ### Pointing at the nearest fire
 
 The nearest-hotspot sensor carries the id of the fire entity it is reporting, so

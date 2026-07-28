@@ -155,6 +155,76 @@ def test_clustering() -> None:
     check("no detections means no clusters", api.cluster_hotspots([], 1.0, (0, 0)) == [])
 
 
+def test_id_carry_over() -> None:
+    """A fire keeps its id while its centroid drifts."""
+    print("id carry-over")
+    h = api.FirmsHotspot
+    origin = (43.5, 3.9)
+
+    def one(lat: float, lon: float, frp: float = 10.0, dist: float = 5.0):
+        return [(h(latitude=lat, longitude=lon, satellite="noaa20", frp=frp), dist)]
+
+    # 43.604 rounds to 43.60, 43.606 to 43.61: the exact grid line that used to
+    # destroy the entity and build a new one.
+    first = api.cluster_hotspots(one(43.604, 3.900), 1.0, origin)
+    drifted = api.cluster_hotspots(one(43.606, 3.900), 1.0, origin, first)
+    check("the drifting centroid would change the raw id",
+          api.cluster_hotspots(one(43.606, 3.900), 1.0, origin)[0].id != first[0].id)
+    check("but the id is carried over instead", drifted[0].id == first[0].id,
+          f"{first[0].id} -> {drifted[0].id}")
+
+    # Far enough away that it is a different fire, not the same one moving.
+    moved_far = api.cluster_hotspots(one(43.900, 3.900), 1.0, origin, first)
+    check("a fire beyond the radius gets a fresh id", moved_far[0].id != first[0].id)
+
+    # Two neighbours ~1.1 km apart: each must keep its own id, not swap.
+    pair = [
+        (h(latitude=44.000, longitude=4.000, satellite="noaa20", frp=20.0), 5.0),
+        (h(latitude=44.010, longitude=4.000, satellite="noaa20", frp=10.0), 6.0),
+    ]
+    base = api.cluster_hotspots(pair, 0.6, origin)
+    check("two neighbours are two fires", len(base) == 2)
+    nudged = [
+        (h(latitude=44.001, longitude=4.000, satellite="noaa20", frp=20.0), 5.0),
+        (h(latitude=44.011, longitude=4.000, satellite="noaa20", frp=10.0), 6.0),
+    ]
+    after = api.cluster_hotspots(nudged, 0.6, origin, base)
+    by_lat = {round(c.latitude, 3): c.id for c in after}
+    check("the near neighbour keeps its own id", by_lat[44.001] == base[0].id)
+    check("the far neighbour keeps its own id", by_lat[44.011] == base[1].id)
+    check("no id is handed out twice", len({c.id for c in after}) == 2)
+
+    # A newcomer next to a survivor must not inherit anything.
+    grown = api.cluster_hotspots(
+        one(43.604, 3.900) + [(h(latitude=43.700, longitude=3.900, satellite="snpp", frp=5.0), 7.0)],
+        1.0, origin, first,
+    )
+    check("the survivor keeps its id", first[0].id in {c.id for c in grown})
+    check("the newcomer gets its own", len({c.id for c in grown}) == 2)
+
+    # An id belonging to a fire that went out must not be reused.
+    gone = api.cluster_hotspots(one(43.700, 3.900, dist=7.0), 1.0, origin, first)
+    check("a fire that went out does not donate its id", gone[0].id != first[0].id)
+
+    # Without a previous cycle nothing changes -- the pre-0.4.0 behaviour.
+    check("no previous set means ids are derived as before",
+          api.cluster_hotspots(one(43.606, 3.900), 1.0, origin)[0].id == "43.61/3.90")
+
+    # Carried ids win over freshly derived ones when they collide.
+    collide_before = api.cluster_hotspots(one(44.0000, 4.0000), 1.0, origin)
+    collide_after = api.cluster_hotspots(
+        [
+            (h(latitude=44.0010, longitude=4.0000, satellite="noaa20", frp=20.0), 5.0),
+            (h(latitude=44.0040, longitude=4.0000, satellite="snpp", frp=1.0), 9.0),
+        ],
+        0.2, origin, collide_before,
+    )
+    check("a carried id is never renamed",
+          collide_before[0].id in {c.id for c in collide_after})
+    check("the colliding newcomer is the one suffixed",
+          len({c.id for c in collide_after}) == 2)
+
+
 # --- met.no parsing -------------------------------------------------------
 def test_parse_wind() -> None:
     """Wind is read from the forecast step closest to the moment asked."""
@@ -348,6 +418,7 @@ def main() -> int:
     test_confidence()
     test_intensity()
     test_clustering()
+    test_id_carry_over()
     test_parse_wind()
     asyncio.run(test_client_request())
     asyncio.run(test_client_caching())
