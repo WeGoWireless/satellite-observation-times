@@ -135,6 +135,9 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
             "brightness_k": cluster.brightness,
             "acquired": cluster.acq_datetime,
             "daynight": cluster.daynight,
+            # Which entry this fire belongs to, and therefore what the state is
+            # measured from. See FirmsCoordinator.origin.
+            "origin": self.coordinator.origin,
         }
 
     @callback

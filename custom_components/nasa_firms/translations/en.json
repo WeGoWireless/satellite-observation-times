@@ -24,7 +24,8 @@
     "error": {
       "invalid_auth": "FIRMS rejected the MAP_KEY.",
       "cannot_connect": "Could not reach the FIRMS servers (check region and connectivity).",
-      "no_satellites": "Select at least one satellite."
+      "no_satellites": "Select at least one satellite.",
+      "radius_too_large": "The radius is too large — keep it at 500 km or less. Beyond that FIRMS caps the response and fires would be missing without you noticing."
     },
     "abort": {
       "already_configured": "This location is already being monitored.",

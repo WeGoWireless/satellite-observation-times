@@ -44,16 +44,23 @@ add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install 
 Satellites, detection window (24 h / 7 days), minimum confidence and minimum
 fire radiative power can be changed later via the entry's *Configure* dialog.
 
+**The radius tops out at 500 km.** FIRMS returns at most 1000 detections per
+satellite per request, and a large enough area hits that ceiling — at which
+point every count the integration shows is too low, with nothing about it
+looking wrong. The limit keeps new entries clear of that; if it is ever reached
+anyway, the hotspot sensor says so through its `truncated` attribute, and the
+way out is a smaller radius or a stricter confidence/FRP filter.
+
 ## Entities
 
 Per config entry:
 
 | Entity | Meaning |
 |---|---|
-| `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors) |
+| `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`) |
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
-| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight` |
+| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
 
 **The sensor ids follow your Home Assistant language.** Home Assistant builds an
 entity id from the entity's *translated* name at the moment it is created, so
@@ -177,9 +184,28 @@ same in light and dark themes.
 
 **One card shows every configured location.** `nasa_firms` is a single source
 name shared by all config entries, so a card set up this way plots the fires of
-all of them together. If you monitor two places far apart, either accept the
-zoomed-out view or give each one its own card listing its fire entities
-explicitly (`auto-entities` and similar cards can filter them by name).
+all of them together. Worse than the zoomed-out view: a fire's **state is its
+distance from its own entry's origin**, so a fire belonging to your other
+location shows a perfectly believable, wrong number on this card.
+
+Every fire therefore carries an `origin` attribute — the coordinates of the
+entry it belongs to, in the same `lat/lon` form as the entry title. The core map
+card cannot filter on it (it takes bare entity ids from
+`geo_location_sources`), but a filtering card can:
+
+```yaml
+type: custom:auto-entities
+card:
+  type: map
+filter:
+  include:
+    - domain: geo_location
+      attributes:
+        origin: "43.60/3.90"
+```
+
+Without such a card, give each location its own map listing its fire entities
+explicitly, or accept that one card means one combined view.
 
 Only fires inside the radius you configured ever become entities, so the map
 never shows detections from beyond it.

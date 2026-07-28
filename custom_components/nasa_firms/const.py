@@ -13,6 +13,13 @@ CONF_MIN_FRP = "min_frp"
 DEFAULT_REGION = "Europe"
 DEFAULT_SATELLITES = ["noaa20", "noaa21", "snpp"]
 DEFAULT_RADIUS_M = 100_000
+# The location selector happily lets a user drag the circle across a continent,
+# and past a certain size FETCH_COUNT silently clips the result. 500 km is five
+# times the default and still answers "my area and well beyond it"; past that
+# the question has stopped being "what is near me". Enforced on new entries
+# only — an existing entry configured wider keeps working and reports the
+# truncation instead.
+MAX_RADIUS_M = 500_000
 DEFAULT_MIN_CONFIDENCE = "any"
 DEFAULT_MIN_FRP = 0.0
 

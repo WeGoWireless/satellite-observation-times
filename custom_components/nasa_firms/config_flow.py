@@ -54,6 +54,7 @@ from .const import (
     DEFAULT_SATELLITES,
     DOMAIN,
     MAP_KEY_URL,
+    MAX_RADIUS_M,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -161,6 +162,8 @@ class NasaFirmsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Try a minimal fetch to validate key, region and reachability."""
         if not data.get(CONF_SATELLITES):
             return {"base": "no_satellites"}
+        if data.get(CONF_RADIUS, DEFAULT_RADIUS_M) > MAX_RADIUS_M:
+            return {"base": "radius_too_large"}
         client = FirmsClient(
             async_get_clientsession(self.hass), data[CONF_MAP_KEY], data[CONF_REGION]
         )

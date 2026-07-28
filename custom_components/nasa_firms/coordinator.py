@@ -53,6 +53,11 @@ class FirmsData:
     raw_detections: int = 0
     per_satellite: dict[str, int] = field(default_factory=dict)
     satellite_errors: dict[str, str] = field(default_factory=dict)
+    # At least one satellite came back at the FETCH_COUNT ceiling, so the feed
+    # was cut off and fires are missing. A log warning is not enough for this:
+    # every number the integration shows is then too low, and nothing about a
+    # too-low fire count looks wrong.
+    truncated: bool = False
     # Wind at the nearest fire's own coordinates; None whenever the lookup was
     # skipped or failed, which is not an error worth surfacing.
     nearest_wind: WindObservation | None = None
@@ -101,6 +106,12 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.min_confidence: str = cfg.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE)
         self.min_frp: float = cfg.get(CONF_MIN_FRP, DEFAULT_MIN_FRP)
         self._bbox = bbox_around(self.latitude, self.longitude, self.radius_km)
+        # Identifies which entry a fire belongs to. Every entry publishes its
+        # fires under the same `nasa_firms` geo_location source, so a map card
+        # fed by `geo_location_sources` mixes them — and since each fire's state
+        # is its distance from *its own* entry's origin, a foreign fire shows a
+        # believable but wrong number. Same form as the entry title.
+        self.origin = f"{self.latitude:.2f}/{self.longitude:.2f}"
         # cluster id -> entity_id, filled in by the geo_location entities once
         # Home Assistant has assigned them. Lets the aggregate sensors point at
         # the actual fire entity instead of guessing its slug.
@@ -124,6 +135,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
                 _LOGGER.warning("FIRMS fetch failed for %s: %s", sat, result)
                 continue
             if len(result) >= FETCH_COUNT:
+                data.truncated = True
                 _LOGGER.warning(
                     "FIRMS returned the maximum of %s features for %s — "
                     "results may be truncated",

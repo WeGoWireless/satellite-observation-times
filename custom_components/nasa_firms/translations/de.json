@@ -24,7 +24,8 @@
     "error": {
       "invalid_auth": "FIRMS hat den MAP_KEY abgelehnt.",
       "cannot_connect": "FIRMS-Server nicht erreichbar (Region und Verbindung prüfen).",
-      "no_satellites": "Mindestens einen Satelliten auswählen."
+      "no_satellites": "Mindestens einen Satelliten auswählen.",
+      "radius_too_large": "Der Radius ist zu groß — höchstens 500 km. Darüber kappt FIRMS die Antwort, und es würden unbemerkt Feuer fehlen."
     },
     "abort": {
       "already_configured": "Dieser Standort wird bereits überwacht.",
