@@ -124,7 +124,7 @@ cards:
       **Wind** — no reading for the fire's location at the moment.
       {%- else %}
       {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
-      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 45 %}**towards you**{% elif off <= 135 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
       {%- if speed < 3 %}
       At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
       {%- endif %}
@@ -154,10 +154,16 @@ adds a line warning that the wind direction is then close to meaningless.
 It puts the geometry into words — the same calculation as the
 [upwind/downwind recipe](templates.md#upwind-or-downwind-work-it-out-yourself),
 stated as *towards*, *past* or *away from* you, **with the angle itself in
-brackets**. The angle is there because the middle bracket spans 45° to 135°, and
-its two ends look nothing alike: at 46° the smoke is drifting almost along the
-line to you, at 134° almost the opposite way. The words give you the direction
-at a glance, the number tells you how close to the edge you are.
+brackets**.
+
+The three words split the half-circle into equal thirds, at 60° and 120°. Those
+are not arbitrary: at exactly 60° the part of the smoke's movement that runs
+along the line to you is half its speed, and at 120° it is half its speed in the
+opposite direction. So *towards you* means more than half the drift is coming
+your way, *away from you* means more than half is leaving, and *past you to one
+side* is the genuinely undecided middle. The angle is printed next to the words
+because a bracket is still a bracket: 61° and 119° both read "past you" and
+look nothing alike.
 
 **Read it as the observation it is**, with the caveats from
 [the wind section](templates.md#wind-at-the-fire) in mind. "Away from you"
