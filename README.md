@@ -60,7 +60,7 @@ Per config entry:
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`) |
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
-| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
+| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
 
 **The sensor ids follow your Home Assistant language.** Home Assistant builds an
 entity id from the entity's *translated* name at the moment it is created, so
@@ -176,11 +176,31 @@ default_zoom: 8
 theme_mode: auto
 ```
 
-Each fire is drawn as a flame marker. The map card cannot use an entity's icon
-for markers it pulls in through `geo_location_sources` — it would otherwise
-label them with the first letters of the entity name — so the integration ships
-the flame as the entity picture instead. Nothing to configure, and it looks the
-same in light and dark themes.
+Each fire is drawn as a flame marker, **coloured by how hard it is burning**.
+The map card cannot use an entity's icon for markers it pulls in through
+`geo_location_sources` — it would otherwise label them with the first letters of
+the entity name — so the integration ships the flame as the entity picture
+instead. Nothing to configure, and it looks the same in light and dark themes.
+
+| Colour | `intensity` | Fire radiative power |
+|---|---|---|
+| 🔴 red | `extreme` | 100 MW and up |
+| 🟠 deep orange | `high` | 50–100 MW |
+| 🟠 orange | `moderate` | 10–50 MW |
+| 🟡 amber | `low` | under 10 MW |
+| ⚪ grey | `null` | no FRP reading came through |
+
+The bands are **absolute**, not relative to what is currently on screen: a
+colour has to mean the same thing every time you look, or you never learn to
+read it. The same value is on each fire as the `intensity` attribute, so cards
+and templates can filter or style by band without hard-coding the thresholds.
+
+**It says how hard the fire is radiating, not how dangerous it is to you.** A
+small fire in the next valley outranks a large one a hundred kilometres away,
+and FRP knows about neither distance nor terrain. Marker *size* is deliberately
+not used: the map card sets one size for every marker on it (`--ha-marker-size`),
+so size cannot carry information — set that variable in a theme if you want
+smaller pins.
 
 **One card shows every configured location.** `nasa_firms` is a single source
 name shared by all config entries, so a card set up this way plots the fires of

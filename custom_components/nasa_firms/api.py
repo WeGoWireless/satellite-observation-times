@@ -51,6 +51,35 @@ WINDOW_7D = "7days"
 
 CONFIDENCE_RANK = {"low": 0, "nominal": 1, "high": 2}
 
+# Fire radiative power bands, in MW, as (lower bound, label), strongest first.
+#
+# Absolute thresholds on purpose. A scale relative to whatever is currently on
+# screen would make the same colour mean something different from one view to
+# the next, so no habit of reading it can ever form — the argument came from
+# pyspilf in the community thread, who ran these exact bands against live data
+# in his own Node-RED setup before the integration existed. Four bands for the
+# same practical reason he settled on four: more and the map turns to mush.
+#
+# This describes radiated power, nothing else. It is not a hazard rating: a
+# small fire next door outranks a large one two valleys away, and FRP knows
+# nothing about either distance or terrain.
+FRP_BANDS: tuple[tuple[float, str], ...] = (
+    (100.0, "extreme"),
+    (50.0, "high"),
+    (10.0, "moderate"),
+    (0.0, "low"),
+)
+
+
+def intensity_for_frp(frp: float | None) -> str | None:
+    """Band a fire radiative power reading, or None when there is no reading."""
+    if frp is None:
+        return None
+    for lower, label in FRP_BANDS:
+        if frp >= lower:
+            return label
+    return "low"
+
 # --- met.no Locationforecast 2.0 -----------------------------------------
 # Free, no API key, arbitrary coordinates. https://api.met.no/doc/TermsOfService
 # is binding; the parts that shape the code below:

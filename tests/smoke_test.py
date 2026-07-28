@@ -105,6 +105,24 @@ def test_confidence() -> None:
     check("garbage stays None", api.normalize_confidence("banana") is None)
 
 
+def test_intensity() -> None:
+    """FRP falls into four absolute bands, boundaries included."""
+    print("intensity")
+    band = api.intensity_for_frp
+    check("100 MW is extreme", band(100.0) == "extreme")
+    check("above 100 stays extreme", band(4321.0) == "extreme")
+    check("50 MW is high", band(50.0) == "high")
+    check("just under 100 is high", band(99.9) == "high")
+    check("10 MW is moderate", band(10.0) == "moderate")
+    check("just under 50 is moderate", band(49.9) == "moderate")
+    check("under 10 is low", band(9.9) == "low")
+    check("zero is low, not missing", band(0.0) == "low")
+    check("no reading is None, not a band", band(None) is None)
+    # Every band must have a picture, or a fire silently loses its marker.
+    labels = {label for _, label in api.FRP_BANDS}
+    check("bands and labels line up", labels == {"extreme", "high", "moderate", "low"})
+
+
 def test_clustering() -> None:
     """Detections of the same fire collapse into one cluster."""
     print("clustering")
@@ -328,6 +346,7 @@ def main() -> int:
     """Run everything and report."""
     test_geometry()
     test_confidence()
+    test_intensity()
     test_clustering()
     test_parse_wind()
     asyncio.run(test_client_request())
