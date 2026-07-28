@@ -229,7 +229,7 @@ cards:
       **Wind** — no reading for the fire's location at the moment.
       {%- else %}
       {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
-      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 45 %}**towards you**{% elif off <= 135 %}**sideways to your position**{% else %}**away from you**{% endif %}.
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 45 %}**towards you**{% elif off <= 135 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
       {%- if speed < 3 %}
       At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
       {%- endif %}
@@ -247,7 +247,7 @@ It renders roughly like this:
 > **How certain** — nominal. That is the satellite's own confidence that this is a real fire rather than a false alarm; it runs low, nominal, high.
 > **When** — 2026-07-26 01:32 UTC, seen by noaa21 and snpp.
 >
-> **Wind at the fire** — from the NW at 24 km/h, pushing the smoke **sideways to your position**.
+> **Wind at the fire** — from the NW at 24 km/h, pushing the smoke **past you to one side** (90° off the line to you).
 > Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
 
 Every branch is covered: no fires in range collapses it to two lines, a failed
@@ -256,11 +256,15 @@ adds a line warning that the wind direction is then close to meaningless.
 
 The wind sentence puts the geometry into words — the same calculation as the
 [recipe above](#upwind-or-downwind-work-it-out-yourself), stated as *towards*,
-*sideways to* or *away from* you instead of an angle. **Read it as the
-observation it is, with the caveats from that section in mind.** "Away from you"
-describes where the air is moving at this moment; it is not an all-clear, and
-the card says so on the next line. If you would rather show the raw angle and
-draw no picture at all, swap that one line for the version in the recipe.
+*past* or *away from* you, **with the angle itself in brackets**. The angle is
+there because the middle bracket spans 45° to 135°, and its two ends look
+nothing alike: at 46° the smoke is drifting almost along the line to you, at
+134° almost the opposite way. The words give you the direction at a glance, the
+number tells you how close to the edge you are. **Read it as the observation it
+is, with the caveats from that section in mind.** "Away from you" describes
+where the air is moving at this moment; it is not an all-clear, and the card
+says so on the next line. If you would rather have the raw angle and no wording
+at all, swap that one line for the version in the recipe.
 
 Using [Bubble Card](https://github.com/Clooos/Bubble-Card)? The same two cards
 drop straight into a `pop-up` as its `cards:` list, so a tile on your dashboard
