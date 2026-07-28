@@ -1,0 +1,134 @@
+# Templates and automations
+
+What each attribute is good for, and how to calculate with it. Back to the
+[README](../README.md), or on to the [dashboard recipes](dashboard.md).
+
+Entity ids in the examples follow an English instance — check
+Developer tools → States for yours, they
+[follow your Home Assistant language](../README.md#entities).
+
+## Pointing at the nearest fire
+
+The nearest-hotspot sensor carries the id of the fire entity it is reporting, so
+you can read any of that fire's attributes without searching for it yourself:
+
+```jinja
+{% set e = state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'nearest_entity_id') %}
+{{ state_attr(e, 'frp_mw') }} MW, {{ state_attr(e, 'confidence') }} confidence,
+seen by {{ state_attr(e, 'satellites') | join(' + ') }}
+```
+
+`bearing` (degrees) and `direction` (16-point compass) are on the same sensor —
+great-circle values, so they stay correct at high latitudes:
+
+```jinja
+Fire {{ states('sensor.firms_43_60_3_90_nearest_hotspot') }} km
+{{ state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'direction') }}
+```
+
+## Wind at the fire
+
+The same sensor carries the wind **at the nearest fire's own coordinates**, not
+at your house — which is the whole point, since the two can differ completely
+across a valley:
+
+| Attribute | Meaning |
+|---|---|
+| `wind_bearing` | Direction the wind is blowing **from**, in degrees (0 = from the north) |
+| `wind_direction` | The same, as a 16-point compass abbreviation (`SW`, `NNE`, …) |
+| `wind_speed` | Wind speed in **m/s** at 10 m above ground (multiply by 3.6 for km/h) |
+
+`wind_direction` is the one to put on a dashboard; `wind_bearing` is the one to
+calculate with, exactly like `direction` and `bearing` for the fire itself.
+
+Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
+One request per 15-minute cycle, for the nearest fire only, cached according to
+met.no's own `Expires` header. All three attributes are `None` when there is no
+fire in range or the lookup did not succeed — the fire data is unaffected
+either way.
+
+### Upwind or downwind: work it out yourself
+
+`bearing` is measured **from you to the fire**, `wind_bearing` is the direction
+the wind comes **from** at the fire. The wind pushes smoke towards
+`wind_bearing + 180°`, and the line from the fire to you is `bearing + 180°` —
+the same 180° on both sides, so the smoke travels along your line of sight
+exactly when the two raw numbers are close:
+
+```jinja
+{% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
+{% set fire = state_attr(s, 'bearing') %}
+{% set wind = state_attr(s, 'wind_bearing') %}
+{% if fire is not none and wind is not none %}
+  {# 0 deg = wind pushing along the fire-to-you line, 180 deg = the other way #}
+  {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
+  Fire {{ states(s) }} km {{ state_attr(s, 'direction') }},
+  wind from {{ state_attr(s, 'wind_direction') }} at
+  {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,
+  {{ delta }}° off the line towards you.
+{% endif %}
+```
+
+**Read that number for what it is.** It is a geometry calculation on two
+observations, not a safety assessment:
+
+- `wind_speed` and `wind_bearing` are a **forecast** for the fire's grid cell,
+  not a measurement at the flame front, and they come from the forecast step
+  nearest the current time — hourly resolution, roughly 1 km of ground.
+- **Wind turns.** A comfortable 170° now says nothing about the next hour, and a
+  wind shift is the classic way a fire surprises people.
+- **In light wind the direction barely means anything.** Below roughly 3 m/s,
+  forecast models disagree wildly: on a spot checked while writing this, two
+  independent models agreed on the speed to within 0.2 m/s and were 65° apart
+  on the direction. Weight the direction by the speed next to it.
+- **Terrain beats wind direction.** Fires run uphill far faster than downhill,
+  large fires generate their own wind, and slope, fuel and humidity matter as
+  much as the direction the smoke is drifting today.
+- The wind **at the fire** is not the wind along the whole path to you, and this
+  says nothing about plume height or how far smoke will actually carry.
+
+So: a useful extra input, never an all-clear. Your country's official warning
+channel stays the authority on whether to act.
+
+### What leaves your instance
+
+When there is a fire in range, its coordinates — rounded to about 1 km — are
+sent to met.no once per update cycle to look up the wind. Nothing about your own
+location, your MAP_KEY or your instance is included.
+
+## Proximity alert
+
+```yaml
+alias: "Wildfire proximity warning"
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.firms_43_60_3_90_nearest_hotspot
+    below: 15
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "🔥 Wildfire warning"
+      message: >-
+        Fire {{ trigger.to_state.state }} km away
+        (NASA FIRMS satellite detection).
+mode: single
+```
+
+## Checking your data is complete
+
+Two attributes on the hotspot sensor say when the picture is not the whole
+picture:
+
+```jinja
+{% set n = 'sensor.firms_43_60_3_90_hotspots' %}
+{% if state_attr(n, 'truncated') %}
+  FIRMS capped the response — there are more fires than are being shown.
+{% endif %}
+{{ state_attr(n, 'ignored_detections') }} detections dropped by ignore zones.
+```
+
+`truncated` means the area is too large for a single FIRMS response and counts
+are too low; shrink the radius or raise the confidence/FRP filter.
+`ignored_detections` is how many detections your
+[ignore zones](../README.md#ignore-zones) removed — useful to confirm a zone is
+doing what you meant it to.
