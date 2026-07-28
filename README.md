@@ -41,6 +41,23 @@ add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install 
 2. Settings → Devices & Services → Add Integration → **NASA FIRMS Wildfire Monitor**.
 3. Enter the key, pick your FIRMS region, drag the location pin onto the spot
    you want to watch, set the radius, choose satellites and filters.
+4. Add a map card. The sensors appear on their own, but the fires are
+   `geo_location` entities and Home Assistant does not build a dashboard out of
+   them — until a card names the source, they have nowhere to show up:
+
+   ```yaml
+   type: map
+   geo_location_sources:
+     - nasa_firms
+   entities:
+     - zone.home
+   default_zoom: 8
+   theme_mode: auto
+   ```
+
+   A card with nothing on it but your home is the normal state, not a fault:
+   it means nothing is burning inside your radius. `sensor.<name>_hotspots`
+   says the same thing as a number.
 
 Satellites, detection window (24 h / 7 days), minimum confidence, minimum fire
 radiative power and [ignore zones](#ignore-zones) can all be changed later via

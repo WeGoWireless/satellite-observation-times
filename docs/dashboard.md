@@ -9,8 +9,8 @@ Developer tools → States for yours, they
 
 ## The map
 
-The fires show up on the standard map card. Nothing to configure beyond naming
-the source:
+The fires show up on the standard map card — you add the card, it needs no
+configuration beyond naming the source:
 
 ```yaml
 type: map
