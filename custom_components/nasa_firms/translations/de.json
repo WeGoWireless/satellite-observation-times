@@ -36,13 +36,47 @@
     "step": {
       "init": {
         "title": "NASA-FIRMS-Optionen",
+        "description": "Eingerichtete Ignorierzonen: {zone_count}",
+        "menu_options": {
+          "filters": "Satelliten und Filter",
+          "zones": "Ignorierzonen"
+        }
+      },
+      "filters": {
+        "title": "Satelliten und Filter",
         "data": {
           "satellites": "Satelliten",
           "window": "Erkennungszeitraum",
           "min_confidence": "Mindest-Konfidenz",
           "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)"
         }
+      },
+      "zones": {
+        "title": "Ignorierzonen",
+        "description": "FIRMS meldet Wärme, keine Waldbrände — eine Fabrik oder Abfackelanlage taucht deshalb jeden Tag auf. Detektionen innerhalb einer Zone werden verworfen, bevor irgendetwas anderes mit ihnen passiert.\n\n{zones}",
+        "menu_options": {
+          "add_zone": "Zone hinzufügen",
+          "remove_zone": "Zonen entfernen",
+          "save_zones": "Speichern und schließen"
+        }
+      },
+      "add_zone": {
+        "title": "Ignorierzone hinzufügen",
+        "description": "Den Pin auf die Wärmequelle ziehen und den Kreis so groß machen, dass sie abgedeckt ist. Eng halten: Alles darin ist für die Integration unsichtbar — auch ein echtes Feuer. Maximal {max_km} km.",
+        "data": {
+          "name": "Name",
+          "location": "Ort und Radius"
+        }
+      },
+      "remove_zone": {
+        "title": "Ignorierzonen entfernen",
+        "data": {
+          "ignore_zones": "Zu entfernende Zonen"
+        }
       }
+    },
+    "error": {
+      "zone_radius_too_large": "Diese Zone ist zu groß. Eine Ignorierzone deckt eine bekannte Wärmequelle ab, keine Region — höchstens 20 km."
     }
   },
   "entity": {

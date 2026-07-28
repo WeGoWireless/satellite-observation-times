@@ -23,9 +23,11 @@ from .api import (
     bbox_around,
     cluster_hotspots,
     haversine_km,
+    in_ignored_zone,
 )
 from .const import (
     CLUSTER_RADIUS_KM,
+    CONF_IGNORE_ZONES,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
     CONF_SATELLITES,
@@ -58,6 +60,9 @@ class FirmsData:
     # every number the integration shows is then too low, and nothing about a
     # too-low fire count looks wrong.
     truncated: bool = False
+    # Detections dropped by the user's ignore zones. Surfaced so a zone can be
+    # seen working — a silent filter on fire data would be worse than none.
+    ignored_detections: int = 0
     # Wind at the nearest fire's own coordinates; None whenever the lookup was
     # skipped or failed, which is not an error worth surfacing.
     nearest_wind: WindObservation | None = None
@@ -153,11 +158,18 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             raise UpdateFailed(f"All FIRMS fetches failed: {data.satellite_errors}")
 
         # Client-side filtering: exact radius (the bbox is a superset),
-        # minimum confidence, minimum fire radiative power.
+        # ignore zones, minimum confidence, minimum fire radiative power.
+        # Zones are re-read every cycle so an edit in the options flow takes
+        # effect on the next refresh rather than on the next restart.
+        zones = self.config_entry.options.get(CONF_IGNORE_ZONES) or []
         within: list = []
+        ignored = 0
         for h in hotspots:
             dist = haversine_km(self.latitude, self.longitude, h.latitude, h.longitude)
             if dist > self.radius_km:
+                continue
+            if in_ignored_zone(h.latitude, h.longitude, zones):
+                ignored += 1
                 continue
             if (
                 self.min_confidence != "any"
@@ -170,6 +182,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             within.append((h, dist))
 
         data.raw_detections = len(within)
+        data.ignored_detections = ignored
         data.clusters = cluster_hotspots(
             within,
             CLUSTER_RADIUS_KM,

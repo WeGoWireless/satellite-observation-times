@@ -231,6 +231,37 @@ def _conf_rank(conf: str | None) -> int:
     return CONFIDENCE_RANK.get(conf, -1) if conf else -1
 
 
+def in_ignored_zone(
+    lat: float, lon: float, zones: list[dict[str, Any]] | None
+) -> bool:
+    """Whether a detection falls inside one of the user's ignore zones.
+
+    FIRMS reports thermal anomalies, not wildfires: a steel works, a flare
+    stack or a landfill fire shows up every single day and is indistinguishable
+    from the real thing in the data. The only party who can tell them apart is
+    the person who lives there, which is why this is a manual list and not a
+    heuristic — a genuine fire front burning for a week looks exactly like a
+    factory to any "seen here every day" rule.
+
+    Applied to detections rather than to finished clusters: a zone edge could
+    otherwise sit inside a cluster, and the fire would be kept or dropped
+    depending on where its centroid happened to land.
+    """
+    if not zones:
+        return False
+    for zone in zones:
+        try:
+            centre_lat = float(zone["latitude"])
+            centre_lon = float(zone["longitude"])
+            radius_km = float(zone["radius"]) / 1000
+        except (KeyError, TypeError, ValueError):
+            # A malformed zone must never take the whole update down with it.
+            continue
+        if haversine_km(lat, lon, centre_lat, centre_lon) <= radius_km:
+            return True
+    return False
+
+
 def _carry_ids(
     clusters: list[FirmsCluster],
     previous: list[FirmsCluster],

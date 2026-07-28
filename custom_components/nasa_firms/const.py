@@ -9,6 +9,13 @@ CONF_SATELLITES = "satellites"
 CONF_WINDOW = "window"
 CONF_MIN_CONFIDENCE = "min_confidence"
 CONF_MIN_FRP = "min_frp"
+CONF_IGNORE_ZONES = "ignore_zones"
+
+# A zone is only ever meant to cover a known heat source and its immediate
+# surroundings — a plant, a flare stack, a landfill. Wide enough and it starts
+# hiding real fires next door, which is the one thing this feature must not do.
+DEFAULT_ZONE_RADIUS_M = 1_000
+MAX_ZONE_RADIUS_M = 20_000
 
 DEFAULT_REGION = "Europe"
 DEFAULT_SATELLITES = ["noaa20", "noaa21", "snpp"]

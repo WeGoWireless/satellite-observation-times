@@ -36,13 +36,47 @@
     "step": {
       "init": {
         "title": "NASA FIRMS options",
+        "description": "Ignore zones configured: {zone_count}",
+        "menu_options": {
+          "filters": "Satellites and filters",
+          "zones": "Ignore zones"
+        }
+      },
+      "filters": {
+        "title": "Satellites and filters",
         "data": {
           "satellites": "Satellites",
           "window": "Detection window",
           "min_confidence": "Minimum confidence",
           "min_frp": "Minimum fire radiative power (0 = no filter)"
         }
+      },
+      "zones": {
+        "title": "Ignore zones",
+        "description": "FIRMS reports heat, not wildfires, so a factory or flare stack shows up every day. Detections inside a zone are dropped before anything else happens to them.\n\n{zones}",
+        "menu_options": {
+          "add_zone": "Add a zone",
+          "remove_zone": "Remove zones",
+          "save_zones": "Save and close"
+        }
+      },
+      "add_zone": {
+        "title": "Add an ignore zone",
+        "description": "Drag the pin onto the heat source and size the circle to cover it. Keep it tight: anything inside is invisible to the integration, including a real fire. Maximum {max_km} km.",
+        "data": {
+          "name": "Name",
+          "location": "Location and radius"
+        }
+      },
+      "remove_zone": {
+        "title": "Remove ignore zones",
+        "data": {
+          "ignore_zones": "Zones to remove"
+        }
       }
+    },
+    "error": {
+      "zone_radius_too_large": "That zone is too large. An ignore zone covers a known heat source, not a region — keep it to 20 km or less."
     }
   },
   "entity": {

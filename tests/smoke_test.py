@@ -123,6 +123,32 @@ def test_intensity() -> None:
     check("bands and labels line up", labels == {"extreme", "high", "moderate", "low"})
 
 
+def test_ignore_zones() -> None:
+    """Detections inside a user zone are dropped; broken zones are ignored."""
+    print("ignore zones")
+    inside = api.in_ignored_zone
+    zone = {"latitude": 43.60, "longitude": 3.90, "radius": 1000, "name": "Plant"}
+    check("a detection at the centre is inside", inside(43.60, 3.90, [zone]))
+    # ~700 m north, still within a 1 km radius.
+    check("a detection 700 m away is inside", inside(43.6063, 3.90, [zone]))
+    # ~2.2 km north, well outside.
+    check("a detection 2 km away is outside", not inside(43.62, 3.90, [zone]))
+    check("no zones means nothing is ignored", not inside(43.60, 3.90, []))
+    check("None instead of a list is safe", not inside(43.60, 3.90, None))
+
+    far = {"latitude": 0.0, "longitude": 0.0, "radius": 1000, "name": "Elsewhere"}
+    check("any matching zone is enough", inside(43.60, 3.90, [far, zone]))
+
+    # A half-written zone must not take an update down or swallow everything.
+    broken = [
+        {"latitude": 43.60, "name": "no longitude"},
+        {"latitude": "x", "longitude": "y", "radius": 1000},
+        {"latitude": 43.60, "longitude": 3.90, "radius": None},
+    ]
+    check("a malformed zone is skipped, not fatal", not inside(43.60, 3.90, broken))
+    check("and does not stop a valid one", inside(43.60, 3.90, [*broken, zone]))
+
+
 def test_clustering() -> None:
     """Detections of the same fire collapse into one cluster."""
     print("clustering")
@@ -417,6 +443,7 @@ def main() -> int:
     test_geometry()
     test_confidence()
     test_intensity()
+    test_ignore_zones()
     test_clustering()
     test_id_carry_over()
     test_parse_wind()

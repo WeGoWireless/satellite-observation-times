@@ -42,7 +42,8 @@ add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install 
    you want to watch, set the radius, choose satellites and filters.
 
 Satellites, detection window (24 h / 7 days), minimum confidence and minimum
-fire radiative power can be changed later via the entry's *Configure* dialog.
+fire radiative power can be changed later via the entry's *Configure* dialog,
+which is also where [ignore zones](#ignore-zones) live.
 
 **The radius tops out at 500 km.** FIRMS returns at most 1000 detections per
 satellite per request, and a large enough area hits that ceiling — at which
@@ -51,13 +52,37 @@ looking wrong. The limit keeps new entries clear of that; if it is ever reached
 anyway, the hotspot sensor says so through its `truncated` attribute, and the
 way out is a smaller radius or a stricter confidence/FRP filter.
 
+## Ignore zones
+
+FIRMS reports heat, not wildfires. A steel works, a flare stack or a
+smouldering landfill is detected every single day, and nothing in the data
+distinguishes it from a real fire — same pixel, same brightness, often the same
+confidence. The person who lives there is the only one who knows.
+
+So mark it: *Configure* → **Ignore zones** → **Add a zone**, drag the pin onto
+the source, size the circle, save. Detections inside a zone are dropped before
+anything else touches them — before clustering, before the counts, before the
+nearest-fire sensor. How many were dropped shows up as `ignored_detections` on
+the hotspot sensor, so you can see a zone doing its job.
+
+**A zone is a blind spot, and it does not know what it is hiding.** A real fire
+starting next to your factory is invisible while it burns inside that circle.
+Keep zones tight — they are capped at 20 km for this reason — and put them only
+where you know what the heat is.
+
+**Why there is no automatic version.** "Ignore anything detected here for many
+days running" sounds like the obvious feature, and it is the one thing this
+must not do: a fire front burning for a week produces exactly that pattern.
+Suppressing fires on a guess is not a trade this integration makes, so the list
+stays manual and yours.
+
 ## Entities
 
 Per config entry:
 
 | Entity | Meaning |
 |---|---|
-| `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`) |
+| `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`, `ignored_detections`) |
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
@@ -352,14 +377,13 @@ mode: single
   a freshly ignited fire can be invisible for hours. Pair it with your
   country's official warning channel (in Europe: the `meteoalarm` integration).
 - FIRMS detects **thermal anomalies**, not wildfires. Factories, flares and
-  landfills show up too — that's what the confidence/FRP filters are for.
-  Automatic suppression of persistent heat sources is on the roadmap.
+  landfills show up too. The confidence and FRP filters thin them out, and
+  [ignore zones](#ignore-zones) remove the ones you know about by name.
 - A hotspot is the center of a 375 m satellite pixel; expect a few hundred
   meters of positional tolerance.
 
 ## Roadmap
 
-- Auto-ignore persistent heat sources (same spot detected across many days)
 - Protocol layer (`api.py`, intentionally free of HA imports) extracted to a
   PyPI package, then a Home Assistant Core submission alongside the existing
   geo-feed family (`nsw_rural_fire_service_feed`, `qld_bushfire_feed`, …)

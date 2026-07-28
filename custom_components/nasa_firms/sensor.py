@@ -88,6 +88,7 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
             "per_satellite": c.data.per_satellite,
             "satellite_errors": c.data.satellite_errors,
             "truncated": c.data.truncated,
+            "ignored_detections": c.data.ignored_detections,
         },
     ),
     FirmsSensorDescription(

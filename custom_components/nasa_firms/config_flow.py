@@ -12,7 +12,13 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_LATITUDE, CONF_LOCATION, CONF_LONGITUDE, CONF_RADIUS
+from homeassistant.const import (
+    CONF_LATITUDE,
+    CONF_LOCATION,
+    CONF_LONGITUDE,
+    CONF_NAME,
+    CONF_RADIUS,
+)
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -41,6 +47,7 @@ from .api import (
     bbox_around,
 )
 from .const import (
+    CONF_IGNORE_ZONES,
     CONF_MAP_KEY,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
@@ -52,9 +59,11 @@ from .const import (
     DEFAULT_RADIUS_M,
     DEFAULT_REGION,
     DEFAULT_SATELLITES,
+    DEFAULT_ZONE_RADIUS_M,
     DOMAIN,
     MAP_KEY_URL,
     MAX_RADIUS_M,
+    MAX_ZONE_RADIUS_M,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -218,15 +227,42 @@ class NasaFirmsConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class NasaFirmsOptionsFlow(OptionsFlow):
-    """Adjust satellites, window and filters without re-adding the entry."""
+    """Adjust filters and ignore zones without re-adding the entry."""
+
+    def __init__(self) -> None:
+        # Working copy. Options are written as a whole, so every step has to
+        # carry the others along or they would be dropped on save.
+        self._options: dict[str, Any] | None = None
+
+    @property
+    def options(self) -> dict[str, Any]:
+        """The edit buffer, seeded from the entry on first use."""
+        if self._options is None:
+            self._options = dict(self.config_entry.options)
+        return self._options
+
+    @property
+    def zones(self) -> list[dict[str, Any]]:
+        """Ignore zones currently in the buffer."""
+        return list(self.options.get(CONF_IGNORE_ZONES) or [])
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the options step."""
+        """Offer the two halves of the options: filters and ignore zones."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["filters", "zones"],
+            description_placeholders={"zone_count": str(len(self.zones))},
+        )
+
+    async def async_step_filters(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Satellites, detection window, confidence and FRP thresholds."""
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
-        current = {**self.config_entry.data, **self.config_entry.options}
+            return self.async_create_entry(data={**self.options, **user_input})
+        current = {**self.config_entry.data, **self.options}
         schema = self.add_suggested_values_to_schema(
             vol.Schema(FILTER_SCHEMA),
             {
@@ -240,4 +276,114 @@ class NasaFirmsOptionsFlow(OptionsFlow):
                 if key in current
             },
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="filters", data_schema=schema)
+
+    async def async_step_zones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """List the zones and offer to add, remove, or save."""
+        menu = ["add_zone"]
+        if self.zones:
+            menu.append("remove_zone")
+        menu.append("save_zones")
+        return self.async_show_menu(
+            step_id="zones",
+            menu_options=menu,
+            description_placeholders={"zones": self._zone_summary()},
+        )
+
+    def _zone_summary(self) -> str:
+        """Human-readable list for the menu description."""
+        if not self.zones:
+            return "None yet."
+        return "\n".join(
+            f"- {z['name']} — {z['latitude']:.4f}/{z['longitude']:.4f}, "
+            f"{z['radius'] / 1000:.1f} km"
+            for z in self.zones
+        )
+
+    async def async_step_add_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Place one zone with the same map picker used for the main radius."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            location = user_input[CONF_LOCATION]
+            radius = location.get(CONF_RADIUS, DEFAULT_ZONE_RADIUS_M)
+            if radius > MAX_ZONE_RADIUS_M:
+                errors["base"] = "zone_radius_too_large"
+            else:
+                zone = {
+                    CONF_NAME: user_input[CONF_NAME].strip() or "Ignored area",
+                    CONF_LATITUDE: location[CONF_LATITUDE],
+                    CONF_LONGITUDE: location[CONF_LONGITUDE],
+                    CONF_RADIUS: radius,
+                }
+                self.options[CONF_IGNORE_ZONES] = [*self.zones, zone]
+                return await self.async_step_zones()
+        schema = self.add_suggested_values_to_schema(
+            vol.Schema(
+                {
+                    vol.Required(CONF_NAME): TextSelector(),
+                    vol.Required(CONF_LOCATION): LocationSelector(
+                        LocationSelectorConfig(radius=True)
+                    ),
+                }
+            ),
+            user_input
+            or {
+                CONF_NAME: "Known heat source",
+                CONF_LOCATION: {
+                    CONF_LATITUDE: self.config_entry.data[CONF_LATITUDE],
+                    CONF_LONGITUDE: self.config_entry.data[CONF_LONGITUDE],
+                    CONF_RADIUS: DEFAULT_ZONE_RADIUS_M,
+                },
+            },
+        )
+        return self.async_show_form(
+            step_id="add_zone",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"max_km": str(MAX_ZONE_RADIUS_M // 1000)},
+        )
+
+    async def async_step_remove_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Drop one or more zones, picked by their position in the list."""
+        if user_input is not None:
+            drop = {int(index) for index in user_input[CONF_IGNORE_ZONES]}
+            self.options[CONF_IGNORE_ZONES] = [
+                zone for i, zone in enumerate(self.zones) if i not in drop
+            ]
+            return await self.async_step_zones()
+        options = [
+            SelectOptionDict(
+                value=str(i),
+                label=(
+                    f"{z['name']} ({z['latitude']:.4f}/{z['longitude']:.4f}, "
+                    f"{z['radius'] / 1000:.1f} km)"
+                ),
+            )
+            for i, z in enumerate(self.zones)
+        ]
+        return self.async_show_form(
+            step_id="remove_zone",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_IGNORE_ZONES): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=True,
+                            mode=SelectSelectorMode.LIST,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_save_zones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Commit the edited zone list."""
+        return self.async_create_entry(data=dict(self.options))
