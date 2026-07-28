@@ -312,9 +312,15 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             return f"{name} — incomplete, has no effect"
 
     def _zone_summary(self) -> str:
-        """Human-readable list for the menu description."""
+        """Human-readable list for the menu description.
+
+        Substituted into a translated string, so anything returned here shows
+        up untranslated. Zone names and coordinates are the user's own, but the
+        empty case must not be an English sentence sitting in a German dialog —
+        hence a dash.
+        """
         if not self.zones:
-            return "None yet."
+            return "—"
         return "\n".join(f"- {self._zone_label(z)}" for z in self.zones)
 
     async def async_step_add_zone(
