@@ -97,7 +97,7 @@ Per config entry:
 | Entity | Meaning |
 |---|---|
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`, `ignored_detections`) |
-| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` |
+| `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` (m/s) |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
 
