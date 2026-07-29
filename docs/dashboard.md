@@ -77,8 +77,37 @@ does. The map card cannot use an entity's `icon` for markers it pulls in through
 `geo_location_sources` — it would label them with the first letters of the
 entity name instead — so the flame ships as the entity *picture*. And marker
 **size** deliberately carries no meaning: the card sets one size for every
-marker on it via `--ha-marker-size`, so it cannot vary per fire. Set that
-variable in a theme if you want smaller pins.
+marker on it via `--ha-marker-size`, so it cannot vary per fire.
+
+### Smaller markers
+
+You can change that one size — for every marker on the card at once — with
+`card-mod` from HACS:
+
+```yaml
+type: map
+geo_location_sources:
+  - nasa_firms
+entities:
+  - zone.home
+default_zoom: 8
+cluster: false
+theme_mode: auto
+card_mod:
+  style: |
+    ha-card {
+      --ha-marker-size: 28px;
+    }
+```
+
+The default is 48 px. The variable cascades from the card down into the markers;
+checked on a live dashboard rather than inferred from the frontend source.
+
+**It is not the answer to a crowded map, though.** The size applies to every
+marker equally, so it cannot carry intensity, and shrinking everything makes a
+dense area harder to read, including the one fire that matters. For crowding,
+`cluster: false` plus the band colours is the lever that works — see
+[Why `cluster: false`](#why-cluster-false).
 
 ## Two locations on one card
 
