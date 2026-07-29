@@ -153,7 +153,7 @@ cards:
       **Wind** — no reading for the fire's location at the moment.
       {%- else %}
       {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
-      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ states(w) }} {{ state_attr(w, 'unit_of_measurement') }}, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ states(w) | float | round(1) }} {{ state_attr(w, 'unit_of_measurement') }}, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
       {%- if speed < 3 %}
       At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
       {%- endif %}
@@ -171,7 +171,7 @@ It renders roughly like this:
 > **How certain** — nominal. That is the satellite's own confidence that this is a real fire rather than a false alarm; it runs low, nominal, high.
 > **When** — 2026-07-26 01:32 UTC, seen by noaa21 and snpp.
 >
-> **Wind at the fire** — from the NW at 24 km/h, pushing the smoke **past you to one side** (90° off the line to you).
+> **Wind at the fire** — from the NW at 23.8 km/h, pushing the smoke **past you to one side** (90° off the line to you).
 > Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
 
 Every branch is covered: no fires in range collapses it to two lines, a failed
