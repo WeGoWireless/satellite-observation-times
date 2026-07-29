@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question, setup help, or something to talk through
+  - name: An idea, a feature request, a question, or setup help
     url: https://community.home-assistant.io/t/wildfire-monitoring-with-nasa-firms-live-fire-map-proximity-alerts-zero-custom-components/1016485
-    about: The community thread this integration grew out of. Faster than an issue, and other people read along.
+    about: The community thread this integration grew out of, and where nearly everything it does was decided. Other people read along and answer — usually faster than an issue.
   - name: Dashboard cards, templates and automations
     url: https://github.com/bangboomben/ha-nasa-firms/tree/main/docs
     about: Recipes that ship with the release you installed — the map, the marker colours, the nearest-fire attributes, the proximity alert.

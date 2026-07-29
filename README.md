@@ -191,6 +191,25 @@ step with the version you installed:
   PyPI package, then a Home Assistant Core submission alongside the existing
   geo-feed family (`nsw_rural_fire_service_feed`, `qld_bushfire_feed`, …)
 
+## Questions, ideas and bugs
+
+- **A question or an idea → the
+  [community thread](https://community.home-assistant.io/t/wildfire-monitoring-with-nasa-firms-live-fire-map-proximity-alerts-zero-custom-components/1016485).**
+  Nearly everything this integration does was decided there — the ignore zones,
+  the wind at the fire and the intensity colours each started as somebody
+  describing a problem. Other people read along and answer, which an issue
+  cannot do, and no GitHub account is needed.
+- **Something is broken →
+  [open an issue](https://github.com/bangboomben/ha-nasa-firms/issues/new/choose).**
+  The bug form asks for the diagnostics download, which is usually the whole
+  difference between "it doesn't work" and a fix.
+- **A feature request works on GitHub too** — there is a form for it and nobody
+  gets sent away. A request is just a conversation before it is a task, so the
+  thread tends to get there faster.
+
+Whatever comes out of it lands in the release notes and in the candidate list
+for the next version (`docs/`), including what was turned down and why.
+
 ## Support
 
 This integration is free and always will be. If it earns a place on your

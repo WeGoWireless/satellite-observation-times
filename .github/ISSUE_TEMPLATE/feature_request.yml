@@ -11,6 +11,12 @@ body:
         problem. So the useful part of a request is usually the problem, not
         the solution.
 
+        Filling this in is entirely fine. If you would rather talk it through
+        first, the
+        [community thread](https://community.home-assistant.io/t/wildfire-monitoring-with-nasa-firms-live-fire-map-proximity-alerts-zero-custom-components/1016485)
+        is where those decisions actually get made, and other people there
+        answer too.
+
   - type: textarea
     id: problem
     attributes:
