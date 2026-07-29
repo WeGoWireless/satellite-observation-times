@@ -36,10 +36,18 @@ across a valley:
 |---|---|
 | `wind_bearing` | Direction the wind is blowing **from**, in degrees (0 = from the north) |
 | `wind_direction` | The same, as a 16-point compass abbreviation (`SW`, `NNE`, …) |
-| `wind_speed` | Wind speed in **m/s** at 10 m above ground (multiply by 3.6 for km/h) |
+| `wind_speed` | Wind speed at 10 m above ground, always in **m/s** — the raw value, for calculating with |
 
 `wind_direction` is the one to put on a dashboard; `wind_bearing` is the one to
 calculate with, exactly like `direction` and `bearing` for the fire itself.
+
+**For the speed, use the entity, not the attribute.**
+`sensor.<name>_wind_at_nearest_hotspot` carries the same reading with its unit
+attached, converted to whatever your instance displays — km/h on a metric
+instance, mph on a US one. The attribute stays **m/s whatever the entity shows**,
+which is what makes it the right one for a threshold and the wrong one to print
+without saying so. Reading `4.4` next to a sensor whose unit is `km` is how this
+distinction got added in the first place.
 
 Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
 One request per 15-minute cycle, for the nearest fire only, cached according to

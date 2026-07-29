@@ -112,8 +112,8 @@ explicitly, or accept that one card means one combined view.
 A map answers *where*. This pairs it with the rest — how far, how strong, seen
 by which satellites, and the wind at the fire. It deliberately spells out what
 each number means instead of printing bare values: `nominal` and `1.19 MW` tell
-you nothing until someone says what they are. Replace the two entity ids on the
-first two lines with yours and paste it in:
+you nothing until someone says what they are. Replace the three entity ids on
+the first three lines with yours and paste it in:
 
 ```yaml
 type: vertical-stack
@@ -131,6 +131,7 @@ cards:
     content: |
       {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
       {% set n = 'sensor.firms_43_60_3_90_hotspots' %}
+      {% set w = 'sensor.firms_43_60_3_90_wind_at_nearest_hotspot' %}
       {% set km = states(s) %}
       {%- if km in ['unknown', 'unavailable'] -%}
       ### No active fires
@@ -152,7 +153,7 @@ cards:
       **Wind** — no reading for the fire's location at the moment.
       {%- else %}
       {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
-      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ (speed * 3.6) | round }} km/h, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ states(w) }} {{ state_attr(w, 'unit_of_measurement') }}, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
       {%- if speed < 3 %}
       At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
       {%- endif %}
@@ -176,6 +177,12 @@ It renders roughly like this:
 Every branch is covered: no fires in range collapses it to two lines, a failed
 weather lookup only replaces the wind sentence, and below roughly 3 m/s the card
 adds a line warning that the wind direction is then close to meaningless.
+
+**Why the card reads the wind twice.** The speed it prints comes from the wind
+*entity*, so it arrives with a unit attached and in whatever your instance
+displays — km/h here, mph on a US instance. The 3 m/s check underneath reads the
+raw `wind_speed` *attribute* instead, because a threshold has to compare against
+a fixed unit, and the attribute is always m/s no matter what the entity shows.
 
 ### About the wind sentence
 

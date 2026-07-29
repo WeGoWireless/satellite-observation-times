@@ -11,7 +11,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfLength
+from homeassistant.const import UnitOfLength, UnitOfSpeed
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -100,6 +100,25 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         suggested_display_precision=1,
         value_fn=lambda d: d.nearest_km,
         attributes_fn=_nearest_attributes,
+        uses_weather=True,
+    ),
+    # The same reading as the `wind_speed` attribute above, as an entity.
+    # A bare number in the states view has no unit, and on this integration the
+    # `km` of the distance sensor sits directly under it — a user in the
+    # community thread read 4.4 m/s as 4.4 km/h and filed it as a bug against
+    # a card showing 16 km/h for the same wind. As an entity Home Assistant
+    # prints the unit itself and converts it to whatever the instance or the
+    # user prefers, so the ambiguity cannot recur. The attribute stays: every
+    # template this project has published reads it, and it is the raw value
+    # that any calculation wants.
+    FirmsSensorDescription(
+        key="nearest_wind_speed",
+        translation_key="nearest_wind_speed",
+        device_class=SensorDeviceClass.WIND_SPEED,
+        native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda d: d.nearest_wind.speed if d.nearest_wind else None,
         uses_weather=True,
     ),
     FirmsSensorDescription(

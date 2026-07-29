@@ -87,6 +87,9 @@
       "nearest_distance": {
         "name": "Nächster Hotspot"
       },
+      "nearest_wind_speed": {
+        "name": "Wind am nächsten Hotspot"
+      },
       "max_frp": {
         "name": "Max. Feuerstrahlungsleistung"
       }
