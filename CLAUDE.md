@@ -60,6 +60,28 @@ Thread feedback drives the roadmap:
   in v0.3.0 as a base64 SVG data URI (not percent-encoded — it lands in an
   unquoted `url()`), full-bleed 24x24, one shared module constant. `_attr_icon`
   stays for the entity list and more-info dialog, which do use it.
+- **Map card clustering (verified 2026-07-29, frontend `dev`).** The core card
+  merges markers within 40 px into one disc carrying a count
+  (`markerClusterGroup({maxClusterRadius: 40})` in `ha-map.ts`), and it is the
+  default: `this._clusterMarkers = this._config.cluster ?? true`
+  (`hui-map-card.ts`). At the `default_zoom: 8` the README recommends, 40 px is
+  ~18 km at 43.6° N — so in a busy area the intensity colours of v0.4.0 collapse
+  into one `--primary-color` bubble, exactly where they matter most. `cluster:
+  false` turns it off and exists only from **HA 2025.6** (frontend #25429);
+  clustering itself landed in 2025.3 (#24244), so 2025.3–2025.5 get it with no
+  way out, and `hacs.json` currently claims 2025.1.0. The built-in **Map panel**
+  renders `<ha-map>` without `clusterMarkers`, i.e. at the component default
+  `true`, and offers no setting — it always clusters. With clustering off, draw
+  order is Leaflet's: `DecoratedMarker` extends `Marker` and nothing in the
+  frontend sets `zIndexOffset`, so z-index follows the marker's y pixel
+  position — **the southernmost fire draws on top, never the strongest**.
+  Neither is reachable from the integration; both are documentation.
+- **Dark mode does not touch our markers (verified 2026-07-29).** `ha-map.ts`
+  defines `--map-filter: invert(0.9) hue-rotate(170deg) …` on `#map.forced-dark`
+  but applies it to `.leaflet-tile-pane` only. Markers sit in
+  `.leaflet-marker-pane`, a sibling pane, so the band colours render as
+  authored. pyspilf's `theme_mode: light` workaround (post #30) is a property of
+  his third-party card — do not copy it into our docs.
 - **The configured radius has no upper bound** → **open, hygiene.** The location
   selector lets a user drag it arbitrarily large. Past a certain size the
   `FETCH_COUNT = 1000` cap truncates the result, and the only signal is a log

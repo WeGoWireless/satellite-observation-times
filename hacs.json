@@ -1,5 +1,5 @@
 {
   "name": "NASA FIRMS Wildfire Monitor",
-  "homeassistant": "2025.1.0",
+  "homeassistant": "2025.6.0",
   "render_readme": true
 }

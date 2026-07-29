@@ -9,8 +9,8 @@ Developer tools → States for yours, they
 
 ## The map
 
-The fires show up on the standard map card — you add the card, it needs no
-configuration beyond naming the source:
+The fires show up on the standard map card. Naming the source is all it takes —
+plus one line that is not the default:
 
 ```yaml
 type: map
@@ -19,11 +19,37 @@ geo_location_sources:
 entities:
   - zone.home
 default_zoom: 8
+cluster: false
 theme_mode: auto
 ```
 
 Only fires inside the radius you configured ever become entities, so the map
 never shows detections from beyond it.
+
+### Why `cluster: false`
+
+Left at its default, the card merges every marker within 40 screen pixels into
+one disc carrying a count. At `default_zoom: 8` those 40 pixels are on the order
+of 15 to 20 km of ground, depending on how far north you are — so the moment
+there is more than one fire in the area, several of them collapse into a single
+blue bubble, and the colours collapse with them. The feature is worth having on
+a map of five phones. On a map of fires it hides the thing you came to look at.
+
+Turning it off has a real price: with many fires the markers overlap instead.
+That is the trade, and it is yours to make — a count you can zoom into, or
+colours you can read at a glance. The option needs Home Assistant 2025.6 or
+newer; before that the card clusters with no way to stop it.
+
+**When markers do overlap, the one in front is the southernmost, not the
+strongest.** The card draws them in screen order and sets nothing per entity, so
+a weak fire can cover a fierce one. Zooming in separates them.
+
+### The built-in Map panel
+
+The *Map* entry in the sidebar shows the fires as well, with no card to set up —
+which makes it the fastest way to see whether this thing works at all. It always
+clusters and offers no setting for it, so treat it as an answer to *where*, not
+to *how strong*.
 
 ## Marker colours
 
@@ -70,6 +96,7 @@ card cannot filter on it, but a filtering card can:
 type: custom:auto-entities
 card:
   type: map
+  cluster: false
 filter:
   include:
     - domain: geo_location
@@ -97,6 +124,7 @@ cards:
     entities:
       - zone.home
     default_zoom: 8
+    cluster: false
     theme_mode: auto
     aspect_ratio: "1:1"
   - type: markdown

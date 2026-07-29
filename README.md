@@ -34,6 +34,9 @@ add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install 
 
 **Manual**: copy `custom_components/nasa_firms` into your `config/custom_components/` and restart.
 
+Requires Home Assistant **2025.6** or newer — that is where the map card gained
+the `cluster` option the recommended card below depends on.
+
 ## Setup
 
 1. Get a free MAP_KEY at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>
@@ -52,8 +55,15 @@ add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install 
    entities:
      - zone.home
    default_zoom: 8
+   cluster: false
    theme_mode: auto
    ```
+
+   **`cluster: false` is the one line that is not the default**, and it matters:
+   left on, the card merges markers that sit close together into a single disc
+   with a count — so several fires become one blue bubble and their colours go
+   with them, exactly when there is something to see.
+   [What that costs and what the alternative looks like](docs/dashboard.md#the-map).
 
    A card with nothing on it but your home is the normal state, not a fault:
    it means nothing is burning inside your radius. `sensor.<name>_hotspots`
