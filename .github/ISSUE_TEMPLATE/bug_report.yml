@@ -1,0 +1,83 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you paste anything: remove your FIRMS MAP_KEY.** The
+        integration never shows it in the UI, but it does sit in a URL in some
+        log lines. Anyone who reads it can use your quota.
+
+        A diagnostics download is redacted for you — it contains no key and no
+        coordinates.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and where you saw it — an entity, a card, a dialog, a notification.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: >-
+        Worth being concrete. "No fires shown" and "fewer fires than I can see
+        on the FIRMS website" are different problems with different causes.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      description: HACS shows it, or read `version` in `custom_components/nasa_firms/manifest.json`.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2025.6.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >-
+        Settings → Devices & Services → NASA FIRMS → the three dots on your
+        entry → **Download diagnostics**. This answers most of what would
+        otherwise be three rounds of questions: which regional service, how
+        large an area, how many detections each satellite returned, what the
+        filters dropped, and whether the response was cut off. The MAP_KEY and
+        all coordinates are removed before the file is written.
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: >-
+        Settings → System → Logs → search for `nasa_firms`. Paste the lines
+        around the problem, not the whole file — and check them for a MAP_KEY.
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have checked everything I pasted above for my MAP_KEY.
+          required: true
+        - label: I have read the [known limitations](https://github.com/bangboomben/ha-nasa-firms#honest-limitations) — satellite passes, processing latency, and heat that is not a wildfire.
+          required: true

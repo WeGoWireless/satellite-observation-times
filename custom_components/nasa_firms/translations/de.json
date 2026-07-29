@@ -79,6 +79,12 @@
       "zone_radius_too_large": "Diese Zone ist zu groß. Eine Ignorierzone deckt eine bekannte Wärmequelle ab, keine Region — höchstens 20 km."
     }
   },
+  "issues": {
+    "truncated": {
+      "title": "Bei {name} fehlen Feuer",
+      "description": "FIRMS hat die Antwort bei seiner Obergrenze von {cap} Detektionen pro Satellit abgeschnitten. Damit ist jede Zahl für diesen Standort zu niedrig — die Anzahl der Feuer, die Entfernung zum nächsten und die höchste Feuerstrahlungsleistung. Keine dieser Zahlen sieht falsch aus, und genau deshalb steht dieser Hinweis hier.\n\nMach die Abfrage kleiner, bis die Grenze nicht mehr erreicht wird: Radius verkleinern, den Erkennungszeitraum von 7 Tagen zurück auf 24 Stunden stellen, oder Mindest-Konfidenz bzw. Mindest-Feuerstrahlungsleistung anheben. Der Hinweis verschwindet von selbst, sobald wieder eine vollständige Antwort ankommt."
+    }
+  },
   "entity": {
     "sensor": {
       "hotspot_count": {

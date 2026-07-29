@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_RADIUS
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
@@ -102,6 +103,10 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.weather = weather
         # Latched so a weather outage is reported once, not every 15 minutes.
         self._weather_failing = False
+        # None rather than False, so the first cycle after a restart always
+        # syncs the repair issue — otherwise one raised before the restart
+        # would outlive the condition that raised it.
+        self._truncation_reported: bool | None = None
         cfg = {**entry.data, **entry.options}
         self.latitude: float = cfg[CONF_LATITUDE]
         self.longitude: float = cfg[CONF_LONGITUDE]
@@ -156,6 +161,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             hotspots.extend(result)
         if not data.per_satellite and data.satellite_errors:
             raise UpdateFailed(f"All FIRMS fetches failed: {data.satellite_errors}")
+        self._async_sync_truncation_issue(data.truncated)
 
         # Client-side filtering: exact radius (the bbox is a superset),
         # ignore zones, minimum confidence, minimum fire radiative power.
@@ -198,6 +204,41 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         if data.clusters:
             data.nearest_wind = await self._async_wind(data.clusters[0])
         return data
+
+    @property
+    def weather_failing(self) -> bool:
+        """Whether the wind lookup is currently backed off. For diagnostics."""
+        return self._weather_failing
+
+    @callback
+    def _async_sync_truncation_issue(self, truncated: bool) -> None:
+        """Put the truncation flag somewhere a person will actually see it.
+
+        `truncated` means FIRMS cut the response off at its cap, so every
+        number this entry produces is too low — the fire count, the distance to
+        the nearest one, the strongest FRP. Nothing about a too-low fire count
+        looks wrong, and an attribute plus a log line is not where anyone
+        looks. The repairs dashboard is.
+        """
+        if truncated == self._truncation_reported:
+            return
+        self._truncation_reported = truncated
+        issue_id = f"truncated_{self.config_entry.entry_id}"
+        if not truncated:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="truncated",
+            translation_placeholders={
+                "name": self.config_entry.title,
+                "cap": str(FETCH_COUNT),
+            },
+        )
 
     async def _async_wind(self, cluster: FirmsCluster) -> WindObservation | None:
         """Wind at the closest fire only — a busy box holds hundreds of them.

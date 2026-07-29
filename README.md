@@ -84,7 +84,8 @@ the entry's *Configure* dialog.
 **The radius tops out at 500 km.** FIRMS returns at most 1000 detections per
 satellite per request, and a large enough area hits that ceiling — at which
 point every count is too low with nothing about it looking wrong. If it is ever
-reached anyway, the hotspot sensor says so through its `truncated` attribute.
+reached anyway, a notice appears under Settings → System → **Repairs** saying so,
+and the hotspot sensor carries the same fact as its `truncated` attribute.
 
 ## Ignore zones
 
