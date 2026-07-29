@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
@@ -13,8 +13,30 @@ from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
 PLATFORMS = [Platform.GEO_LOCATION, Platform.SENSOR]
 
 
+@callback
+def _async_repair_region(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> None:
+    """Rewrite the one stored region name that never worked.
+
+    `Russia_and_Asia` was offered in the setup dropdown from the first release
+    but is not a FIRMS region — the service is called `Russia_Asia`, and the
+    wrong name is an HTTP 400 on every single fetch. Anyone who picked it
+    cannot repair it themselves any more either, because the dropdown is gone
+    and the region follows from the coordinates now.
+
+    Only this one value is touched. A region that is merely an odd choice for
+    a location still works, and rewriting those would undo a deliberate pick
+    in one of the overlaps.
+    """
+    if entry.data.get(CONF_REGION) != "Russia_and_Asia":
+        return
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_REGION: "Russia_Asia"}
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> bool:
     """Set up NASA FIRMS from a config entry."""
+    _async_repair_region(hass, entry)
     session = async_get_clientsession(hass)
     client = FirmsClient(session, entry.data[CONF_MAP_KEY], entry.data[CONF_REGION])
     weather = MetNoClient(

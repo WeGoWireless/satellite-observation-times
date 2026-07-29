@@ -6,7 +6,6 @@
         "description": "Kostenlosen MAP_KEY unter {map_key_url} anfordern — der Key wird im Config-Eintrag gespeichert und nie in der UI angezeigt.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
-          "region": "FIRMS-Region",
           "location": "Zu überwachender Standort und Radius",
           "satellites": "Satelliten",
           "window": "Erkennungszeitraum",
@@ -23,7 +22,8 @@
     },
     "error": {
       "invalid_auth": "FIRMS hat den MAP_KEY abgelehnt.",
-      "cannot_connect": "FIRMS-Server nicht erreichbar (Region und Verbindung prüfen).",
+      "cannot_connect": "FIRMS-Server nicht erreichbar — Verbindung prüfen und erneut versuchen.",
+      "no_region": "Für diesen Ort gibt es keinen FIRMS-Dienst. Die Feeds sind regional und decken nicht die ganze Welt ab; dieser Punkt liegt in einer der Lücken.",
       "no_satellites": "Mindestens einen Satelliten auswählen.",
       "radius_too_large": "Der Radius ist zu groß — höchstens 500 km. Darüber kappt FIRMS die Antwort, und es würden unbemerkt Feuer fehlen."
     },

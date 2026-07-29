@@ -30,21 +30,57 @@ SATELLITES = {
     "modis": "MODIS · Terra/Aqua",
 }
 
-# Known FIRMS MapServer regions. If yours is missing, please open an issue.
-REGIONS = [
-    "Alaska",
-    "Australia_NewZealand",
-    "Canada",
-    "Central_America",
-    "Europe",
-    "Northern_and_Central_Africa",
-    "Russia_and_Asia",
-    "South_America",
-    "South_Asia",
-    "SouthEast_Asia",
-    "Southern_Africa",
-    "USA_contiguous_and_Hawaii",
-]
+# FIRMS serves each region from its own MapServer instance, and each one
+# declares its own extent in its WFS capabilities document. These are those
+# extents, read from the live services on 2026-07-29, as
+# (lon_west, lat_south, lon_east, lat_north).
+#
+# They overlap deliberately, so that a fire near a boundary is served by both
+# neighbours — a point can therefore sit in two or three of them at once.
+# They also do not cover the whole globe: Greenland falls between Canada and
+# Europe, and no region claims it.
+#
+# Every key is a URL path segment, so a typo in one is an HTTP 400 on every
+# request. That is exactly what "Russia_and_Asia" was, from the first release
+# until these extents were read off the live services: it is "Russia_Asia".
+REGION_BOUNDS: dict[str, tuple[float, float, float, float]] = {
+    "Alaska": (-180.0, 50.0, -139.0, 72.0),
+    "Australia_NewZealand": (110.0, -55.0, 180.0, -10.0),
+    "Canada": (-150.0, 40.0, -49.0, 79.0),
+    "Central_America": (-119.5, 7.0, -58.5, 33.5),
+    "Europe": (-26.0, 34.0, 35.0, 82.0),
+    "Northern_and_Central_Africa": (-27.0, -10.0, 52.0, 37.5),
+    "Russia_Asia": (26.0, 9.0, 180.0, 83.5),
+    "South_America": (-112.0, -60.0, -26.0, 13.0),
+    "South_Asia": (54.0, 5.5, 102.0, 40.0),
+    "SouthEast_Asia": (88.0, -12.0, 163.0, 31.0),
+    "Southern_Africa": (10.0, -36.0, 58.5, -4.0),
+    "USA_contiguous_and_Hawaii": (-160.5, 17.5, -63.8, 50.0),
+}
+
+def region_for(latitude: float, longitude: float) -> str | None:
+    """The FIRMS region serving a point, or None where none does.
+
+    Containment alone does not decide, because the regions overlap. The
+    point's distance to the nearest edge does: the deeper inside a region it
+    sits, the less it matters that these extents are declarations rather than
+    measurements, and the further it is from whatever the neighbouring service
+    does at its own margin.
+
+    None is a real answer rather than a failure to try — FIRMS leaves parts of
+    the world uncovered, and saying so beats guessing at the nearest region and
+    returning nothing forever.
+    """
+    best: tuple[float, str] | None = None
+    for name, (lon_w, lat_s, lon_e, lat_n) in REGION_BOUNDS.items():
+        if not (lon_w <= longitude <= lon_e and lat_s <= latitude <= lat_n):
+            continue
+        margin = min(
+            longitude - lon_w, lon_e - longitude, latitude - lat_s, lat_n - latitude
+        )
+        if best is None or margin > best[0]:
+            best = (margin, name)
+    return best[1] if best else None
 
 WINDOW_24H = "24hrs"
 WINDOW_7D = "7days"

@@ -6,7 +6,6 @@
         "description": "Get a free MAP_KEY at {map_key_url} — it is stored in the config entry and never shown in the UI.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
-          "region": "FIRMS region",
           "location": "Location and radius to monitor",
           "satellites": "Satellites",
           "window": "Detection window",
@@ -23,7 +22,8 @@
     },
     "error": {
       "invalid_auth": "FIRMS rejected the MAP_KEY.",
-      "cannot_connect": "Could not reach the FIRMS servers (check region and connectivity).",
+      "cannot_connect": "Could not reach the FIRMS servers — check your connection and try again.",
+      "no_region": "FIRMS has no service covering that location. Its feeds are regional and leave parts of the world out; this spot falls in one of the gaps.",
       "no_satellites": "Select at least one satellite.",
       "radius_too_large": "The radius is too large — keep it at 500 km or less. Beyond that FIRMS caps the response and fires would be missing without you noticing."
     },

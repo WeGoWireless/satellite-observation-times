@@ -37,7 +37,6 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import (
-    REGIONS,
     SATELLITES,
     WINDOW_24H,
     WINDOW_7D,
@@ -45,6 +44,7 @@ from .api import (
     FirmsClient,
     FirmsError,
     bbox_around,
+    region_for,
 )
 from .const import (
     CONF_IGNORE_ZONES,
@@ -57,7 +57,6 @@ from .const import (
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
     DEFAULT_RADIUS_M,
-    DEFAULT_REGION,
     DEFAULT_SATELLITES,
     DEFAULT_ZONE_RADIUS_M,
     DOMAIN,
@@ -107,9 +106,10 @@ USER_SCHEMA = vol.Schema(
         vol.Required(CONF_MAP_KEY): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
-        vol.Required(CONF_REGION, default=DEFAULT_REGION): SelectSelector(
-            SelectSelectorConfig(options=REGIONS, mode=SelectSelectorMode.DROPDOWN)
-        ),
+        # No region field: FIRMS splits the world into a dozen regional
+        # services, and which one serves a point follows from the point. Asking
+        # was a question with a knowable answer, and getting it wrong returned
+        # nothing at all with no hint as to why.
         vol.Required(CONF_LOCATION): LocationSelector(
             LocationSelectorConfig(radius=True)
         ),
@@ -130,24 +130,35 @@ class NasaFirmsConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             location = user_input.pop(CONF_LOCATION)
-            data = {
-                **user_input,
-                CONF_LATITUDE: location[CONF_LATITUDE],
-                CONF_LONGITUDE: location[CONF_LONGITUDE],
-                CONF_RADIUS: location.get(CONF_RADIUS, DEFAULT_RADIUS_M),
-            }
-            await self.async_set_unique_id(
-                f"{data[CONF_REGION]}-{data[CONF_LATITUDE]:.3f}-{data[CONF_LONGITUDE]:.3f}"
-            )
-            self._abort_if_unique_id_configured()
-            errors = await self._validate(data)
-            if not errors:
-                # The MAP_KEY goes into entry.data only — never into the
-                # title, which is shown all over the UI.
-                return self.async_create_entry(
-                    title=f"FIRMS {data[CONF_LATITUDE]:.2f}/{data[CONF_LONGITUDE]:.2f}",
-                    data=data,
+            region = region_for(location[CONF_LATITUDE], location[CONF_LONGITUDE])
+            if region is None:
+                # Not a user error and not ours: FIRMS genuinely has no
+                # service covering that spot. Saying so beats picking the
+                # nearest region and returning an empty feed forever.
+                errors = {"base": "no_region"}
+            else:
+                data = {
+                    **user_input,
+                    CONF_REGION: region,
+                    CONF_LATITUDE: location[CONF_LATITUDE],
+                    CONF_LONGITUDE: location[CONF_LONGITUDE],
+                    CONF_RADIUS: location.get(CONF_RADIUS, DEFAULT_RADIUS_M),
+                }
+                await self.async_set_unique_id(
+                    f"{region}-{data[CONF_LATITUDE]:.3f}-{data[CONF_LONGITUDE]:.3f}"
                 )
+                self._abort_if_unique_id_configured()
+                errors = await self._validate(data)
+                if not errors:
+                    # The MAP_KEY goes into entry.data only — never into the
+                    # title, which is shown all over the UI.
+                    return self.async_create_entry(
+                        title=(
+                            f"FIRMS {data[CONF_LATITUDE]:.2f}/"
+                            f"{data[CONF_LONGITUDE]:.2f}"
+                        ),
+                        data=data,
+                    )
             user_input[CONF_LOCATION] = location
         schema = self.add_suggested_values_to_schema(
             USER_SCHEMA,

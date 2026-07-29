@@ -92,6 +92,42 @@ def test_geometry() -> None:
 
 
 # --- FIRMS parsing --------------------------------------------------------
+# --- regions --------------------------------------------------------------
+def test_regions() -> None:
+    """Which FIRMS service serves a point follows from the point."""
+    print("regions")
+    where = api.region_for
+    check("southern France is Europe", where(43.60, 3.90) == "Europe")
+    check("Thessaloniki is Europe", where(40.54, 23.01) == "Europe")
+    check(
+        "California is the contiguous USA",
+        where(38.5, -121.5) == "USA_contiguous_and_Hawaii",
+    )
+    check("Tokyo is Russia_Asia", where(35.7, 139.7) == "Russia_Asia")
+    check("Sydney is Australia_NewZealand", where(-33.9, 151.2) == "Australia_NewZealand")
+    check(
+        "Nairobi is Northern_and_Central_Africa",
+        where(-1.3, 36.8) == "Northern_and_Central_Africa",
+    )
+    # Istanbul lies in Europe and in Russia_Asia at once: 6 degrees inside
+    # Europe's eastern edge, 3 inside Russia_Asia's western one.
+    check("an overlap goes to whichever the point is deeper inside", where(41.0, 29.0) == "Europe")
+    # Greenland falls between Canada's eastern edge and Europe's western one.
+    check("an uncovered spot is None, not a guess", where(72.0, -40.0) is None)
+    check("open ocean is None too", where(0.0, -150.0) is None)
+    check(
+        "the name that returned HTTP 400 is gone",
+        "Russia_and_Asia" not in api.REGION_BOUNDS,
+    )
+    check(
+        "every extent is a sane box",
+        all(
+            w < e and s < n and -180 <= w and e <= 180 and -90 <= s and n <= 90
+            for w, s, e, n in api.REGION_BOUNDS.values()
+        ),
+    )
+
+
 def test_confidence() -> None:
     """VIIRS letters and MODIS percentages collapse onto one scale."""
     print("confidence")
@@ -441,6 +477,7 @@ async def test_client_failures() -> None:
 def main() -> int:
     """Run everything and report."""
     test_geometry()
+    test_regions()
     test_confidence()
     test_intensity()
     test_ignore_zones()

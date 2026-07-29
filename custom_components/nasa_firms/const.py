@@ -17,7 +17,6 @@ CONF_IGNORE_ZONES = "ignore_zones"
 DEFAULT_ZONE_RADIUS_M = 1_000
 MAX_ZONE_RADIUS_M = 20_000
 
-DEFAULT_REGION = "Europe"
 DEFAULT_SATELLITES = ["noaa20", "noaa21", "snpp"]
 DEFAULT_RADIUS_M = 100_000
 # The location selector happily lets a user drag the circle across a continent,

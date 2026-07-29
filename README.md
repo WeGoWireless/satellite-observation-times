@@ -42,8 +42,10 @@ the `cluster` option the recommended card below depends on.
 1. Get a free MAP_KEY at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>
    (rate limit 5 000 requests / 10 min — this integration uses a handful per 15 minutes).
 2. Settings → Devices & Services → Add Integration → **NASA FIRMS Wildfire Monitor**.
-3. Enter the key, pick your FIRMS region, drag the location pin onto the spot
-   you want to watch, set the radius, choose satellites and filters.
+3. Enter the key, drag the location pin onto the spot you want to watch, set
+   the radius, choose satellites and filters. FIRMS splits the world into a
+   dozen regional services, but which one covers your pin follows from the pin
+   — there is nothing to pick, and nothing to get wrong.
 4. Add a map card. The sensors appear on their own, but the fires are
    `geo_location` entities and Home Assistant does not build a dashboard out of
    them — until a card names the source, they have nowhere to show up:
