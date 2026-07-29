@@ -98,6 +98,41 @@ observations, not a safety assessment:
 So: a useful extra input, never an all-clear. Your country's official warning
 channel stays the authority on whether to act.
 
+### The same maths for a fire that is not the closest
+
+Every fire carries its own `bearing` and `direction`, so the calculation works
+for any of them — take the bearing off the fire entity instead of off the
+sensor:
+
+```jinja
+{% set f = 'geo_location.wildfire_hotspot_43_45_4_90' %}
+{% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
+{% set fire = state_attr(f, 'bearing') %}
+{% set wind = state_attr(s, 'wind_bearing') %}
+{% if fire is not none and wind is not none %}
+  {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
+  Fire {{ states(f) }} km {{ state_attr(f, 'direction') }},
+  {{ delta }}° off the line towards you.
+{% endif %}
+```
+
+**The wind in it is still the nearest fire's**, because that is the only point
+looked up. Using it for a different fire is a judgement about how far one
+reading carries, and it is yours to make:
+
+- **A few kilometres is fine.** The lookup is rounded to about 1 km before it
+  is sent, and the forecast grid behind it is coarser than that — a fire two
+  kilometres from the one we asked about is genuinely covered by the same
+  reading.
+- **Tens of kilometres is not.** That is several grid cells, i.e. different
+  weather, and the number you would get is arithmetic rather than an
+  observation.
+- **In mountains it can be wrong at any distance.** Valley winds do not care
+  how close two points look on a map.
+
+If the fire you care about is far from the nearest one, treat the angle as
+undefined instead of as a number you happen to be able to compute.
+
 ### What leaves your instance
 
 When there is a fire in range, its coordinates — rounded to about 1 km — are

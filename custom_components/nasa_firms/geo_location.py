@@ -165,6 +165,14 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
             intensity, MARKER_PICTURE_NO_READING
         )
         self._attr_extra_state_attributes = {
+            # Where this fire lies from its entry's origin, in the same frame
+            # as the distance the state carries. Computed for every cluster
+            # since v0.2.0 but published only on the nearest-hotspot sensor,
+            # which quietly limited what the wind reading was good for: the
+            # upwind/downwind calculation needs the bearing of *the fire it is
+            # about*, so it could only ever be done for the closest one.
+            "bearing": cluster.bearing,
+            "direction": cluster.direction,
             "frp_mw": cluster.frp,
             # The band `frp_mw` falls into, so cards and templates can style or
             # filter by it without carrying the thresholds themselves. It says
