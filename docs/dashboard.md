@@ -161,12 +161,12 @@ cards:
       {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
       {% set n = 'sensor.firms_43_60_3_90_hotspots' %}
       {% set w = 'sensor.firms_43_60_3_90_wind_at_nearest_hotspot' %}
-      {% set km = states(s) %}
-      {%- if km in ['unknown', 'unavailable'] -%}
+      {% set dist = states(s) %}
+      {%- if dist in ['unknown', 'unavailable'] -%}
       ### No active fires
       Nothing detected in the area you are monitoring.
       {%- else -%}
-      ### Nearest fire: {{ km }} km away
+      ### Nearest fire: {{ dist }} {{ state_attr(s, 'unit_of_measurement') }} away
       It lies to the **{{ state_attr(s, 'direction') }}** of you. {{ states(n) }} fires detected in the monitored area in the last 24 hours.
       {%- set e = state_attr(s, 'nearest_entity_id') %}
       {%- if e %}
@@ -212,6 +212,12 @@ adds a line warning that the wind direction is then close to meaningless.
 displays — km/h here, mph on a US instance. The 3 m/s check underneath reads the
 raw `wind_speed` *attribute* instead, because a threshold has to compare against
 a fixed unit, and the attribute is always m/s no matter what the entity shows.
+
+**And why the distance names its unit.** Same reason, one line up: the
+nearest-hotspot sensor follows your unit system too, so the heading takes the
+unit off the entity rather than printing `km`. On a US instance that number is
+in miles — while the markers on the map above it stay in kilometres, because
+`geo_location` entities have no unit conversion at all.
 
 ### About the wind sentence
 

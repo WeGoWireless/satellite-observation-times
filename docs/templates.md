@@ -7,6 +7,14 @@ Entity ids in the examples follow an English instance — check
 Developer tools → States for yours, they
 [follow your Home Assistant language](../README.md#entities).
 
+**Distances: take the unit from the entity.** The nearest-hotspot sensor is a
+distance sensor, so Home Assistant shows it in your instance's unit system —
+kilometres on a metric instance, miles on a US one — and it can be overridden
+per entity. The examples below therefore read
+`state_attr(s, 'unit_of_measurement')` rather than printing `km`. The **fire
+entities are the exception**: `geo_location` has no unit conversion, so their
+state is in kilometres everywhere, whatever the sensor next to them says.
+
 ## Pointing at the nearest fire
 
 The nearest-hotspot sensor carries the id of the fire entity it is reporting, so
@@ -22,8 +30,9 @@ seen by {{ state_attr(e, 'satellites') | join(' + ') }}
 great-circle values, so they stay correct at high latitudes:
 
 ```jinja
-Fire {{ states('sensor.firms_43_60_3_90_nearest_hotspot') }} km
-{{ state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'direction') }}
+{% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
+Fire {{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
+{{ state_attr(s, 'direction') }}
 ```
 
 ## Wind at the fire
@@ -70,7 +79,8 @@ exactly when the two raw numbers are close:
 {% if fire is not none and wind is not none %}
   {# 0 deg = wind pushing along the fire-to-you line, 180 deg = the other way #}
   {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
-  Fire {{ states(s) }} km {{ state_attr(s, 'direction') }},
+  Fire {{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
+  {{ state_attr(s, 'direction') }},
   wind from {{ state_attr(s, 'wind_direction') }} at
   {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,
   {{ delta }}° off the line towards you.
@@ -183,13 +193,16 @@ alias: "Wildfire proximity warning"
 triggers:
   - trigger: numeric_state
     entity_id: sensor.firms_43_60_3_90_nearest_hotspot
+    # In whatever unit the sensor displays — 15 km on a metric instance,
+    # 15 miles on a US one. See the note at the top of this page.
     below: 15
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "🔥 Wildfire warning"
       message: >-
-        Fire {{ trigger.to_state.state }} km away
+        Fire {{ trigger.to_state.state }}
+        {{ trigger.to_state.attributes.unit_of_measurement }} away
         (NASA FIRMS satellite detection).
 mode: single
 ```

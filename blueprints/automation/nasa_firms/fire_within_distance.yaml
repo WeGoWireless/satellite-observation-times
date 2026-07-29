@@ -46,7 +46,9 @@ blueprint:
     threshold:
       name: Alert distance
       description: >-
-        Alert when the nearest fire is closer than this. Worth setting well
+        Alert when the nearest fire is closer than this, **in the unit that
+        sensor displays** — kilometres on a metric instance, miles on a US one,
+        or whatever you set for it under Settings → Entities. Worth setting well
         inside the radius you configured, so the alert means something more
         than "there is a fire somewhere in my area".
       default: 10
@@ -55,7 +57,6 @@ blueprint:
           min: 1
           max: 500
           step: 1
-          unit_of_measurement: km
           mode: box
     notification:
       name: What should happen
@@ -77,7 +78,13 @@ triggers:
 variables:
   sensor: !input distance_sensor
   limit: !input threshold
-  title: Fire within {{ limit }} km
+  # Taken from the entity instead of written out: the sensor carries
+  # `device_class: distance`, so Home Assistant displays it in the instance's
+  # unit system and lets it be overridden per entity — a US instance reads
+  # miles. The trigger compares against that displayed value, so an alert that
+  # says "km" regardless would put the wrong label on a right number.
+  unit: "{{ state_attr(sensor, 'unit_of_measurement') or 'km' }}"
+  title: Fire within {{ limit }} {{ unit }}
   # Built in one place so the wind half can be left out cleanly when there is
   # no reading, rather than printing "wind unknown" into an alert.
   message: >-
@@ -89,7 +96,7 @@ variables:
     {%- set drift = none if off is none else
         ('towards you' if off <= 60 else
         ('past you to one side' if off <= 120 else 'away from you')) -%}
-    Fire detected {{ states(sensor) }} km{{ ' ' ~ dir if dir else '' }}.
+    Fire detected {{ states(sensor) }} {{ unit }}{{ ' ' ~ dir if dir else '' }}.
     {{- '' if off is none else
         ' Wind at the fire is pushing the smoke ' ~ drift ~
         ' (' ~ (off | round) ~ '° off the line to you).' }}
