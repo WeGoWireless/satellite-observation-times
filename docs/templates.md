@@ -141,6 +141,35 @@ location, your MAP_KEY or your instance is included.
 
 ## Proximity alert
 
+### The blueprint
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbangboomben%2Fha-nasa-firms%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fnasa_firms%2Ffire_within_distance.yaml)
+
+Pick the *Nearest hotspot* sensor of the location you want to watch, set a
+distance, choose what should happen. The message is built for you and carries
+the distance, the direction, and — only when a reading exists — where the wind
+at that fire is currently pushing the smoke:
+
+> Fire detected 8.2 km ENE. Wind at the fire is pushing the smoke towards you
+> (30° off the line to you).
+
+Inside the action you configure, two variables are ready to use: `{{ message }}`
+and `{{ title }}`. The action is a free choice, so it does not have to be a
+notification — a script, a light, a siren and a TTS announcement all work.
+
+**The one real gap.** It watches the *nearest* fire and fires once, as that
+distance crosses your line from outside to inside. If a fire is already inside
+the line and a second, closer one appears, the distance simply drops further and
+no second alert follows. Closing that needs a "new fire" signal the integration
+does not have yet; it is planned, and the blueprint will be rebuilt on it.
+
+The wind sentence is the same geometry as
+[the section above](#upwind-or-downwind-work-it-out-yourself), with the same
+limits: it describes where the air is moving at this moment, it is not a
+forecast of where the smoke ends up, and "away from you" is not an all-clear.
+
+### Or build your own
+
 ```yaml
 alias: "Wildfire proximity warning"
 triggers:

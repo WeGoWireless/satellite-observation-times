@@ -1,0 +1,93 @@
+blueprint:
+  name: NASA FIRMS — fire within a set distance
+  homeassistant:
+    min_version: 2025.6.0
+  description: >-
+    Alerts you when the nearest satellite-detected fire comes closer than a
+    distance you set.
+
+
+    **What it can and cannot see.** It watches the *nearest* fire. It fires
+    once, when that distance crosses your line from outside to inside. If a
+    fire is already inside the line and a second, closer one appears, the
+    distance simply drops further — there is no second alert. A later release
+    adds a proper "new fire" signal and this blueprint will be rebuilt on it.
+
+
+    **The wind sentence** is only added when a wind reading exists, and it
+    describes the wind at that fire's own coordinates right now: whether the
+    air is currently carrying smoke towards you, past you, or away. That is
+    geometry, not a safety assessment. Wind turns, slope and fuel matter as
+    much, and "away from you" is never an all-clear. Your country's official
+    warning channel stays the authority on whether to act.
+
+
+    **Not a real-time alarm either.** Satellites pass a few times a day and
+    processing adds up to about three hours, so a fire can burn for a while
+    before it exists in this data at all.
+  domain: automation
+  source_url: https://github.com/bangboomben/ha-nasa-firms/blob/main/blueprints/automation/nasa_firms/fire_within_distance.yaml
+  input:
+    distance_sensor:
+      name: Nearest hotspot sensor
+      description: >-
+        The "Nearest hotspot" sensor of the location you want to watch. With
+        several configured locations, pick the one this alert is about.
+      selector:
+        entity:
+          filter:
+            - integration: nasa_firms
+              domain: sensor
+              device_class: distance
+    threshold:
+      name: Alert distance
+      description: >-
+        Alert when the nearest fire is closer than this. Worth setting well
+        inside the radius you configured, so the alert means something more
+        than "there is a fire somewhere in my area".
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 500
+          step: 1
+          unit_of_measurement: km
+          mode: box
+    notification:
+      name: What should happen
+      description: >-
+        Usually a notification. Two variables are ready for you to use:
+        `{{ title }}` and `{{ message }}` — the message already contains the
+        distance, the direction and, when it is known, the wind sentence.
+      selector:
+        action: {}
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input distance_sensor
+    below: !input threshold
+
+variables:
+  sensor: !input distance_sensor
+  limit: !input threshold
+  title: Fire within {{ limit }} km
+  # Built in one place so the wind half can be left out cleanly when there is
+  # no reading, rather than printing "wind unknown" into an alert.
+  message: >-
+    {%- set dir = state_attr(sensor, 'direction') -%}
+    {%- set fire = state_attr(sensor, 'bearing') -%}
+    {%- set wind = state_attr(sensor, 'wind_bearing') -%}
+    {%- set off = (((wind - fire) + 180) % 360 - 180) | abs
+        if (fire is not none and wind is not none) else none -%}
+    {%- set drift = none if off is none else
+        ('towards you' if off <= 60 else
+        ('past you to one side' if off <= 120 else 'away from you')) -%}
+    Fire detected {{ states(sensor) }} km{{ ' ' ~ dir if dir else '' }}.
+    {{- '' if off is none else
+        ' Wind at the fire is pushing the smoke ' ~ drift ~
+        ' (' ~ (off | round) ~ '° off the line to you).' }}
+
+actions: !input notification

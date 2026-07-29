@@ -71,6 +71,12 @@ the `cluster` option the recommended card below depends on.
    it means nothing is burning inside your radius. `sensor.<name>_hotspots`
    says the same thing as a number.
 
+5. To be told when a fire comes close, import the proximity-alert blueprint —
+   pick the *Nearest hotspot* sensor, set a distance, choose the notification.
+   [What it does and does not catch](docs/templates.md#proximity-alert).
+
+   [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbangboomben%2Fha-nasa-firms%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fnasa_firms%2Ffire_within_distance.yaml)
+
 Satellites, detection window (24 h / 7 days), minimum confidence, minimum fire
 radiative power and [ignore zones](#ignore-zones) can all be changed later via
 the entry's *Configure* dialog.
