@@ -7,11 +7,15 @@ blueprint:
     distance you set.
 
 
-    **What it can and cannot see.** It watches the *nearest* fire. It fires
-    once, when that distance crosses your line from outside to inside. If a
-    fire is already inside the line and a second, closer one appears, the
-    distance simply drops further — there is no second alert. A later release
-    adds a proper "new fire" signal and this blueprint will be rebuilt on it.
+    **What it can and cannot see.** It watches the *nearest* fire and triggers
+    on the moment that distance crosses your line from outside to inside. Two
+    consequences, both worth knowing before you wonder why it stayed quiet.
+    If a fire is **already** closer than your distance when you set this up,
+    nothing fires — the line has to be crossed, and it was crossed before the
+    automation existed. And if a fire is already inside and a second, closer
+    one appears, the distance just drops further, which is not a crossing
+    either. Both are the same missing piece: a later release adds a proper
+    "new fire" signal and this blueprint will be rebuilt on it.
 
 
     **The wind sentence** is only added when a wind reading exists, and it

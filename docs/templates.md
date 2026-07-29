@@ -157,11 +157,19 @@ Inside the action you configure, two variables are ready to use: `{{ message }}`
 and `{{ title }}`. The action is a free choice, so it does not have to be a
 notification — a script, a light, a siren and a TTS announcement all work.
 
-**The one real gap.** It watches the *nearest* fire and fires once, as that
-distance crosses your line from outside to inside. If a fire is already inside
-the line and a second, closer one appears, the distance simply drops further and
-no second alert follows. Closing that needs a "new fire" signal the integration
-does not have yet; it is planned, and the blueprint will be rebuilt on it.
+**The one real gap.** It watches the *nearest* fire and triggers on the moment
+that distance crosses your line from outside to inside. So:
+
+- **A fire already inside the line when you create the automation raises
+  nothing.** The crossing happened before the automation existed. Set a distance
+  of 100 km while the nearest fire sits at 2.8 km and it will simply never fire
+  — correct behaviour, and the first thing to check when it stays quiet.
+- **A second, closer fire raises nothing either.** The distance drops further,
+  which is not a crossing.
+
+Both are the same missing piece. Closing it needs a "new fire" signal the
+integration does not have yet; it is planned, and the blueprint will be rebuilt
+on it.
 
 The wind sentence is the same geometry as
 [the section above](#upwind-or-downwind-work-it-out-yourself), with the same
