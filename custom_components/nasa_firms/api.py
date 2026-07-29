@@ -241,7 +241,6 @@ class FirmsHotspot:
     raw_confidence: Any = None
     brightness: float | None = None
     acq_datetime: str | None = None
-    daynight: str | None = None
 
 
 @dataclass
@@ -258,7 +257,6 @@ class FirmsCluster:
     confidence: str | None
     brightness: float | None
     acq_datetime: str | None
-    daynight: str | None
     bearing: float | None = None
     direction: str | None = None
 
@@ -379,7 +377,6 @@ def cluster_hotspots(
                     "conf": hotspot.confidence,
                     "bright": hotspot.brightness,
                     "acq": hotspot.acq_datetime,
-                    "daynight": hotspot.daynight,
                 }
             )
             continue
@@ -413,7 +410,6 @@ def cluster_hotspots(
                 confidence=c["conf"],
                 brightness=c["bright"],
                 acq_datetime=c["acq"],
-                daynight=c["daynight"],
                 bearing=round(brg) if brg is not None else None,
                 direction=cardinal(brg) if brg is not None else None,
             )
@@ -528,6 +524,14 @@ class FirmsClient:
                 t = "0000"
             acq = f"{props['acq_date']} {t[:2]}:{t[2:]} UTC"
 
+        # No `daynight`, on purpose. The layer schema declares the field —
+        # DescribeFeatureType lists it as a string — but the GeoJSON never
+        # carries it. Checked on 2026-07-29 across VIIRS SNPP, NOAA-20 and
+        # MODIS, both windows, in Europe, the USA and Australia: the properties
+        # are acq_date, acq_datetime, acq_time, brightness, brightness_2,
+        # confidence, frp, latitude, longitude, scan, track, and nothing else.
+        # It shipped as an attribute that was `None` in every release up to
+        # v0.4.0. Do not read it back in because the schema says it exists.
         return FirmsHotspot(
             latitude=lat,
             longitude=lon,
@@ -537,7 +541,6 @@ class FirmsClient:
             raw_confidence=props.get("confidence"),
             brightness=_num("bright_ti4") or _num("brightness"),
             acq_datetime=acq,
-            daynight=props.get("daynight"),
         )
 
 

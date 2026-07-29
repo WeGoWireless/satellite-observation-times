@@ -112,7 +112,7 @@ Per config entry:
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire in km (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` — the last one is the raw value in **m/s**, for calculating with |
 | `sensor.<name>_wind_at_nearest_hotspot` | The same wind speed as an entity, so it carries its unit and follows your unit system (km/h on a metric instance, mph on a US one). Put this one on a dashboard |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
-| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `daynight`, `origin` |
+| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin` |
 
 **The sensor ids follow your Home Assistant language.** Home Assistant builds an
 entity id from the entity's *translated* name, so the ids above are what an
