@@ -206,6 +206,83 @@ describes where the air is moving at this moment; it is not an all-clear, and
 the card says so on the next line. If you would rather have the raw angle and no
 wording at all, swap that one line for the version in the recipe.
 
+## A custom map with your own tiles and layering
+
+Everything above uses the built-in card. If you want your own basemap, control
+over which marker draws on top, or a free choice of icon, `auto-entities` plus a
+third-party map card gets you there. Both come from HACS.
+
+This is @pyspilf's setup from the community thread, with his API key removed:
+
+```yaml
+type: custom:auto-entities
+card:
+  type: custom:map-card        # map-card by nathan.gs
+  cluster_markers: false
+  theme_mode: light
+  focus_entity: zone.home
+  zoom: 8
+  tile_layers:
+    - url: https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY
+      attribution: © Stadia Maps © OpenMapTiles © OpenStreetMap
+filter:
+  include:
+    - entity_id: geo_location.wildfire_hotspot_*
+      attributes:
+        intensity: extreme
+      options:
+        z_index_offset: 900
+        display: icon
+        icon: mdi:fire
+        color: "#FF0000"
+    - entity_id: geo_location.wildfire_hotspot_*
+      attributes:
+        intensity: high
+      options:
+        z_index_offset: 800
+        display: icon
+        icon: mdi:fire
+        color: "#FF4D00"
+    - entity_id: geo_location.wildfire_hotspot_*
+      attributes:
+        intensity: moderate
+      options:
+        z_index_offset: 700
+        display: icon
+        icon: mdi:fire
+        color: "#FF7400"
+    - entity_id: geo_location.wildfire_hotspot_*
+      attributes:
+        intensity: low
+      options:
+        z_index_offset: 600
+        display: icon
+        icon: mdi:fire
+        color: "#FFC100"
+sort:
+  method: friendly_name
+```
+
+**What it buys you** is the `z_index_offset` ladder: the fiercest fire is drawn
+on top of the weaker ones. The built-in card cannot do that — it orders markers
+by screen position, so the southernmost wins regardless of intensity.
+
+Three details worth keeping when you adapt it:
+
+- **`theme_mode: light` is not a typo.** That card inverts its own colours under
+  Home Assistant's dark theme, so it needs the light setting to come out dark.
+  This is the card's behaviour, not ours: on the built-in card our band colours
+  render as authored in both themes.
+- **`display: icon` replaces our marker picture entirely**, which is why the
+  four colours are repeated in the card config. They are the same bands, so the
+  map keeps meaning the same thing.
+- **With more than one config entry**, add `origin: "43.60/3.90"` next to each
+  `intensity` to keep the locations apart — see
+  [Two locations on one card](#two-locations-on-one-card).
+
+Worth repeating pyspilf's own verdict on it: for most people the built-in card
+is enough. This is for when you have a reason.
+
 ## Bubble Card
 
 Using [Bubble Card](https://github.com/Clooos/Bubble-Card)? The same two cards

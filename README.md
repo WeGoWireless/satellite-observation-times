@@ -157,6 +157,11 @@ step with the version you installed:
   latency. This reliably answers *"where is it burning and how far from me"* —
   a freshly ignited fire can be invisible for hours. Pair it with your
   country's official warning channel (in Europe: the `meteoalarm` integration).
+  **GDACS will not fill that gap** — the obvious neighbour covers drought,
+  earthquake, flood, tropical cyclone, tsunami and volcano, and has no fire
+  category at all. Someone in the community thread had been relying on it for
+  exactly this. Regional feeds such as `nsw_rural_fire_service_feed` and
+  `qld_bushfire_feed` do cover fire, but only their own corner of the world.
 - FIRMS detects **thermal anomalies**, not wildfires. Factories, flares and
   landfills show up too. The confidence and FRP filters thin them out, and
   [ignore zones](#ignore-zones) remove the ones you know about by name.
