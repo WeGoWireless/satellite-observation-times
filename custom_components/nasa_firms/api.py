@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -139,6 +140,12 @@ WEATHER_MAX_STEP_AGE = timedelta(hours=1)
 
 # met.no permanently bans clients that keep pushing after being throttled.
 WEATHER_RATE_LIMIT_BACKOFF = timedelta(hours=1)
+
+# One cached forecast per rounded coordinate pair. The consumer asks about a
+# handful of nearby fires per cycle plus the odd one-off lookup; beyond this
+# the least-recently-used entry is dropped. Small on purpose — every entry
+# holds a full Locationforecast payload.
+WEATHER_CACHE_SIZE = 8
 
 
 class FirmsError(Exception):
@@ -626,22 +633,34 @@ def _cache_until(headers: Any, now: datetime) -> datetime | None:
     return expires if expires > now else None
 
 
+@dataclass
+class _CachedForecast:
+    """One point's forecast plus the header state that keeps refreshes cheap."""
+
+    payload: dict[str, Any] | None = None
+    last_modified: str | None = None
+    valid_until: datetime | None = None
+
+
 class MetNoClient:
     """Minimal async client for met.no Locationforecast 2.0.
 
-    Holds exactly one cached forecast, because the integration only ever asks
-    about the nearest fire. Moving to a different fire drops the cache; staying
-    on the same one costs at most one request per Expires window, and a 304
-    when the forecast has not been rerun.
+    Holds one cached forecast per rounded coordinate pair, least-recently-used
+    out beyond WEATHER_CACHE_SIZE: the consumer revisits the same handful of
+    fires every cycle, so each point costs at most one request per Expires
+    window, and a 304 when the forecast has not been rerun.
+
+    A 403/429 blocks the whole client, not one entry. met.no throttles the
+    consumer, not the coordinate — carrying on against the next fire is
+    exactly the behaviour that turns a temporary refusal into a permanent ban.
     """
 
     def __init__(self, session: aiohttp.ClientSession, user_agent: str) -> None:
         self._session = session
         self._user_agent = user_agent
-        self._key: tuple[float, float] | None = None
-        self._payload: dict[str, Any] | None = None
-        self._last_modified: str | None = None
-        self._valid_until: datetime | None = None
+        # Insertion order doubles as recency order, via move_to_end().
+        self._cache: OrderedDict[tuple[float, float], _CachedForecast] = OrderedDict()
+        self._blocked_until: datetime | None = None
 
     async def wind_at(
         self, latitude: float, longitude: float, now: datetime | None = None
@@ -658,19 +677,26 @@ class MetNoClient:
             round(latitude, WEATHER_COORD_DECIMALS),
             round(longitude, WEATHER_COORD_DECIMALS),
         )
-        if key != self._key:
-            # A different fire — nothing we hold applies to it.
-            self._key = key
-            self._payload = None
-            self._last_modified = None
-            self._valid_until = None
-        if self._valid_until is not None and now < self._valid_until:
-            return self._payload
+        entry = self._cache.get(key)
+        if self._blocked_until is not None and now < self._blocked_until:
+            # Throttled means throttled: nothing goes out for any coordinate,
+            # and an unknown one is not even worth a cache slot. A stale
+            # payload served here is kept honest by parse_wind's step-age cap.
+            return entry.payload if entry else None
+        if entry is None:
+            entry = _CachedForecast()
+            self._cache[key] = entry
+            while len(self._cache) > WEATHER_CACHE_SIZE:
+                self._cache.popitem(last=False)
+        else:
+            self._cache.move_to_end(key)
+            if entry.valid_until is not None and now < entry.valid_until:
+                return entry.payload
 
         headers = {"User-Agent": self._user_agent}
-        if self._last_modified:
+        if entry.last_modified:
             # Must match the stored Last-Modified verbatim, per their ToS.
-            headers["If-Modified-Since"] = self._last_modified
+            headers["If-Modified-Since"] = entry.last_modified
         try:
             async with asyncio.timeout(30):
                 resp = await self._session.get(
@@ -683,19 +709,18 @@ class MetNoClient:
             raise WeatherError(f"met.no request failed: {err}") from err
 
         if resp.status in (403, 429):
-            # Being throttled and carrying on regardless earns a permanent ban.
-            self._valid_until = now + WEATHER_RATE_LIMIT_BACKOFF
+            self._blocked_until = now + WEATHER_RATE_LIMIT_BACKOFF
             raise WeatherError(f"met.no refused the request (HTTP {resp.status})")
         if resp.status == 304:
-            self._valid_until = _cache_until(resp.headers, now)
-            return self._payload
+            entry.valid_until = _cache_until(resp.headers, now)
+            return entry.payload
         if resp.status != 200:
             raise WeatherError(f"met.no returned HTTP {resp.status}: {body[:200]}")
         try:
             payload = json.loads(body)
         except ValueError as err:
             raise WeatherError(f"met.no sent no usable JSON: {body[:200]}") from err
-        self._payload = payload
-        self._last_modified = resp.headers.get("Last-Modified")
-        self._valid_until = _cache_until(resp.headers, now)
-        return self._payload
+        entry.payload = payload
+        entry.last_modified = resp.headers.get("Last-Modified")
+        entry.valid_until = _cache_until(resp.headers, now)
+        return payload

@@ -368,12 +368,15 @@ BODY = json.dumps(FIXTURE)
 UA = "ha-nasa-firms/0.3.0 github.com/bangboomben/ha-nasa-firms"
 
 
-def ok_response(expires: str = "Mon, 27 Jul 2026 13:29:37 GMT") -> FakeResponse:
+def ok_response(
+    expires: str = "Mon, 27 Jul 2026 13:29:37 GMT",
+    last_modified: str = "Mon, 27 Jul 2026 12:59:07 GMT",
+) -> FakeResponse:
     """A 200 with the caching headers met.no really sends."""
     return FakeResponse(
         200,
         BODY,
-        {"Expires": expires, "Last-Modified": "Mon, 27 Jul 2026 12:59:07 GMT"},
+        {"Expires": expires, "Last-Modified": last_modified},
     )
 
 
@@ -423,16 +426,101 @@ async def test_client_caching() -> None:
     )
     check("a 304 keeps serving the cached forecast", wind is not None)
 
-    # A different fire invalidates everything we hold.
+    # A second fire is its own request with its own cache entry — it must
+    # neither reuse the first fire's forecast nor destroy it.
     session2 = FakeSession(ok_response(), ok_response())
     client2 = api.MetNoClient(session2, UA)
     await client2.wind_at(43.60, 3.90, RECORDED_AT)
     await client2.wind_at(40.54, 23.01, RECORDED_AT)
-    check("moving to another fire refetches", len(session2.calls) == 2)
+    check("a second fire is a fresh request", len(session2.calls) == 2)
     check(
-        "and drops the stale If-Modified-Since",
+        "without the first fire's If-Modified-Since",
         "If-Modified-Since" not in session2.calls[1]["headers"],
     )
+    # Returning to either fire inside its Expires window costs nothing —
+    # the alternation that made a one-slot cache miss on every call.
+    await client2.wind_at(43.60, 3.90, RECORDED_AT + timedelta(minutes=15))
+    await client2.wind_at(40.54, 23.01, RECORDED_AT + timedelta(minutes=15))
+    check("alternating between fires hits both caches", len(session2.calls) == 2)
+
+    # Past Expires, each fire refreshes with its own Last-Modified.
+    session3 = FakeSession(
+        ok_response(last_modified="Mon, 27 Jul 2026 12:59:07 GMT"),
+        ok_response(last_modified="Mon, 27 Jul 2026 12:41:00 GMT"),
+        FakeResponse(304, "", {}),
+        FakeResponse(304, "", {}),
+    )
+    client3 = api.MetNoClient(session3, UA)
+    await client3.wind_at(43.60, 3.90, RECORDED_AT)
+    await client3.wind_at(40.54, 23.01, RECORDED_AT)
+    later = RECORDED_AT + timedelta(minutes=45)
+    await client3.wind_at(43.60, 3.90, later)
+    await client3.wind_at(40.54, 23.01, later)
+    check(
+        "each fire refreshes with its own Last-Modified",
+        session3.calls[2]["headers"].get("If-Modified-Since")
+        == "Mon, 27 Jul 2026 12:59:07 GMT"
+        and session3.calls[3]["headers"].get("If-Modified-Since")
+        == "Mon, 27 Jul 2026 12:41:00 GMT",
+    )
+
+
+async def test_client_cache_bounds() -> None:
+    """The cache is bounded, and recency decides who falls out."""
+    print("met.no client: cache bounds")
+    size = api.WEATHER_CACHE_SIZE
+    session = FakeSession(*[ok_response() for _ in range(size + 2)])
+    client = api.MetNoClient(session, UA)
+
+    # Fill every slot with distinct coordinates.
+    for i in range(size):
+        await client.wind_at(40.0 + i, 3.90, RECORDED_AT)
+    check("filling the cache is one request per point", len(session.calls) == size)
+
+    # Touch the oldest entry so it becomes the newest...
+    await client.wind_at(40.0, 3.90, RECORDED_AT + timedelta(minutes=5))
+    check("a cache hit costs no request", len(session.calls) == size)
+
+    # ...then overflow the cache by one.
+    await client.wind_at(40.0 + size, 3.90, RECORDED_AT + timedelta(minutes=5))
+    check("one past the cap is a fresh request", len(session.calls) == size + 1)
+
+    # The touched entry survived the eviction; the untouched oldest did not.
+    await client.wind_at(40.0, 3.90, RECORDED_AT + timedelta(minutes=6))
+    check("a hit refreshes recency, so the touched point survives",
+          len(session.calls) == size + 1)
+    await client.wind_at(41.0, 3.90, RECORDED_AT + timedelta(minutes=6))
+    check("the least-recently-used point is the one evicted",
+          len(session.calls) == size + 2)
+
+
+async def test_client_backoff_is_global() -> None:
+    """One throttle silences every coordinate, not just the one that hit it."""
+    print("met.no client: backoff covers every coordinate")
+    session = FakeSession(ok_response(), FakeResponse(429, "slow down", {}), ok_response())
+    client = api.MetNoClient(session, UA)
+    await client.wind_at(43.60, 3.90, RECORDED_AT)
+    try:
+        await client.wind_at(40.54, 23.01, RECORDED_AT)
+        check("the throttle still raises WeatherError", False, "no exception")
+    except api.WeatherError:
+        check("the throttle still raises WeatherError", True)
+
+    # A coordinate the client has never seen must not tempt it into a request.
+    wind = await client.wind_at(45.00, 7.00, RECORDED_AT + timedelta(minutes=5))
+    check("a throttle on one fire silences all of them", len(session.calls) == 2)
+    check("an unknown fire reports no wind meanwhile", wind is None)
+
+    # What was cached before the throttle is still served from memory.
+    wind = await client.wind_at(43.60, 3.90, RECORDED_AT + timedelta(minutes=5))
+    check("a fire cached before the throttle keeps its wind", wind is not None)
+    check("still without a request", len(session.calls) == 2)
+
+    # Once the hour is up, requests resume.
+    after = RECORDED_AT + api.WEATHER_RATE_LIMIT_BACKOFF + timedelta(minutes=1)
+    wind = await client.wind_at(45.00, 7.00, after)
+    check("requests resume after the backoff", len(session.calls) == 3)
+    check("and the wind comes back", wind is not None)
 
 
 async def test_client_failures() -> None:
@@ -486,6 +574,8 @@ def main() -> int:
     test_parse_wind()
     asyncio.run(test_client_request())
     asyncio.run(test_client_caching())
+    asyncio.run(test_client_cache_bounds())
+    asyncio.run(test_client_backoff_is_global())
     asyncio.run(test_client_failures())
     print()
     if FAILURES:
