@@ -321,3 +321,25 @@ automation:
 instance's history, every `unavailable` phase this integration had ever
 produced there was exactly that. Without the delay this alert fires on every
 configuration change.
+
+**Showing the timestamp on a card needs one extra step.** `last_reported`
+never reaches the frontend — the state object a card sees carries only
+`last_changed` and `last_updated`, by design: a timestamp that moves on every
+quiet report would push an update to every open browser each cycle, which is
+the exact cost `last_reported` exists to avoid. So a card cannot read it, and
+a template that only reads it never re-renders, because an unchanged report
+fires no `state_changed` event. Both problems have the same one-line fix — a
+`now()` reference, which makes Home Assistant re-render the template every
+minute (the watchdog above has one built into its comparison already):
+
+```yaml
+template:
+  - sensor:
+      - name: "FIRMS data last received"
+        state: >
+          {% set _ = now() %}
+          {{ states['sensor.firms_43_60_3_90_hotspots'].last_reported }}
+```
+
+Found by @pyspilf in the community thread while wiring the watchdog into a
+custom button card.
