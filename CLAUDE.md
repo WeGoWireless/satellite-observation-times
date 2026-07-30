@@ -82,12 +82,9 @@ Thread feedback drives the roadmap:
   `.leaflet-marker-pane`, a sibling pane, so the band colours render as
   authored. pyspilf's `theme_mode: light` workaround (post #30) is a property of
   his third-party card — do not copy it into our docs.
-- **The configured radius has no upper bound** → **open, hygiene.** The location
-  selector lets a user drag it arbitrarily large. Past a certain size the
-  `FETCH_COUNT = 1000` cap truncates the result, and the only signal is a log
-  warning — nothing in the UI. Either cap the radius in the config flow or
-  surface the truncation on the hotspot sensor before this reaches a wide
-  audience.
+- ~~The configured radius has no upper bound~~ → **DONE across v0.4.0/v0.5.0**:
+  500 km cap in the config flow, `truncated` attribute, and a Repairs notice
+  when FIRMS caps the response anyway.
 - **One map card mixes all config entries** → documented, not fixed. `nasa_firms`
   is a single source name for every entry, so a card using
   `geo_location_sources` plots them all together — two distant entries give a
@@ -154,20 +151,16 @@ Thread feedback drives the roadmap:
   satellite data cannot back, since wind shifts and slope/fuel matter as much.
   Asked pyspilf directly in the thread for his read before deciding. Either way
   `bearing` ships first as the enabler.
-- **Two config entries share one `geo_location` source** → **open, found in
-  live use 2026-07-27**: every fire entity carries `source: nasa_firms`
-  regardless of which entry produced it, and a map card's
-  `geo_location_sources` has no per-entry filter — so a second entry's fires
-  land on the first entry's map. Worse for anyone hand-rolling a list: the
-  entity *state* is the distance from **its own** entry's origin, so a fire
-  from the other entry reads as a plausible-looking wrong number. Options:
-  per-entry source strings (breaks documented `nasa_firms` configs), or an
-  entry-identifying attribute so `auto-entities` can filter. Document the trap
-  either way — it is invisible until someone adds a second location.
-- Cluster IDs are `lat/lon` rounded to 2 decimals (`api.py`), so a centroid
-  drifting across a 0.01° boundary destroys the entity and creates a new one
-  (history lost) → **open, hygiene**: carry the ID forward by matching new
-  clusters against the previous cycle within the cluster radius.
+- ~~Two config entries share one `geo_location` source~~ → **answered in
+  v0.4.0** with the `origin` attribute (entry coordinates on every fire) so
+  `auto-entities` can filter; the trap and the recipe are in
+  `docs/dashboard.md`. Per-entry source strings stay rejected — they would
+  break every documented `nasa_firms` card.
+- ~~Cluster IDs die when the centroid drifts across a 0.01° boundary~~ →
+  **DONE in v0.4.0**: ids are carried forward by matching against the previous
+  cycle, nearest-first, no id handed out twice. Memory only — a restart
+  rebuilds them from coordinates, which is the gap 0.7.0's persisted state
+  closes.
 
 **Evaluated and rejected:** Gridware/GridScope pole sensors as an extra alert
 source (posts #8/#10). B2B hardware sold to utilities, no public developer
@@ -186,6 +179,20 @@ source** into the integration, so it sets the precedent for the next one: the
 client lives in `api.py` with its own error type, the coordinator swallows its
 failures, and the fire data never depends on it. Any future second source
 follows that shape.
+
+**Relevance shipped as v0.6.0** (2026-07-30, live-tested on both entries;
+decision record in `docs/v0.6.0-candidates.md`): wind for the N nearest fires
+(`wind_fires`, default 3, cap 5 — the cap is met.no budget arithmetic, not a
+technical limit), `smoke_offset` on every fire with a reading (**absent, not
+None**, beyond the budget — presence is the filter), the `get_wind` action
+(response-only, raises instead of returning nulls), `strongest_entity_id` on
+the max-FRP sensor, and timeout messages that name themselves (str() of a
+TimeoutError is empty — both clients caught it as a blank message). Two
+decisions not to re-litigate: the met.no rate-limit backoff is
+**client-global** on purpose, because a throttled client walking on to the
+next fire is exactly what earns the permanent ban; and there is **no "most
+intense" sensor entity** — one entity per ranking would triple the same
+attributes, the pointer is the pattern.
 
 ## Conventions
 
