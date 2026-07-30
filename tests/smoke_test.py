@@ -91,6 +91,31 @@ def test_geometry() -> None:
     check("cardinal(-90) is W", api.cardinal(-90) == "W")
 
 
+def test_smoke_offset() -> None:
+    """The angle between the smoke's travel and the fire-to-you line."""
+    print("smoke offset")
+    off = api.smoke_offset
+    # Fire NE of you, wind at the fire from the NE: it blows the smoke SW,
+    # straight along the line to you.
+    check("wind blowing down the line reads 0", near(off(45.0, 45.0), 0.0))
+    check("wind blowing away up the line reads 180", near(off(225.0, 45.0), 180.0))
+    check("wind across the line reads 90", near(off(135.0, 45.0), 90.0))
+    # The wording thresholds sit at 60 and 120 — the boundary must be exact.
+    check("the card's towards/past boundary is exact", near(off(105.0, 45.0), 60.0))
+    # The 0/360 wrap: a fire almost due north, wind from just past north.
+    check("wraps across north", near(off(10.0, 350.0), 20.0))
+    check("and symmetrically", near(off(350.0, 10.0), 20.0))
+    check("negative bearings normalise", near(off(-90.0, 45.0), 135.0))
+    check(
+        "every combination lands in 0..180",
+        all(
+            0.0 <= off(float(w), float(f)) <= 180.0
+            for w in range(0, 360, 30)
+            for f in range(0, 360, 30)
+        ),
+    )
+
+
 # --- FIRMS parsing --------------------------------------------------------
 # --- regions --------------------------------------------------------------
 def test_regions() -> None:
@@ -565,6 +590,7 @@ async def test_client_failures() -> None:
 def main() -> int:
     """Run everything and report."""
     test_geometry()
+    test_smoke_offset()
     test_regions()
     test_confidence()
     test_intensity()

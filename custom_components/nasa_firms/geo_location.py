@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import intensity_for_frp
+from .api import cardinal, intensity_for_frp, smoke_offset
 from .const import ATTRIBUTION, GEO_SOURCE
 from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
 
@@ -187,6 +187,25 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
             # measured from. See FirmsCoordinator.origin.
             "origin": self.coordinator.origin,
         }
+        # Wind at this fire's own coordinates, for the N nearest fires only.
+        # Absent — not None — beyond that budget or when the lookup failed, so
+        # a template can tell "no wind data" from "attribute exists, no value"
+        # and auto-entities can filter on presence alone. Same rounding as the
+        # nearest-hotspot sensor, so the two never disagree about one fire.
+        wind = self.coordinator.data.wind.get(self.cluster_id)
+        if wind is not None and cluster.bearing is not None:
+            self._attr_extra_state_attributes.update(
+                {
+                    "wind_bearing": round(wind.bearing),
+                    "wind_direction": cardinal(wind.bearing),
+                    "wind_speed": round(wind.speed, 1),
+                    # The finished number, standing to `wind_bearing` exactly
+                    # as `intensity` stands to `frp_mw`: 0 = the smoke is
+                    # pushed straight at you, 180 = straight away. Geometry,
+                    # not danger — wind turns, and "away" is not "safe".
+                    "smoke_offset": round(smoke_offset(wind.bearing, cluster.bearing)),
+                }
+            )
 
     @callback
     def _handle_coordinator_update(self) -> None:

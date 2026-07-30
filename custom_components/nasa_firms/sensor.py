@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import cardinal
+from .api import cardinal, smoke_offset
 from .const import ATTRIBUTION, ATTRIBUTION_WEATHER, DOMAIN
 from .coordinator import FirmsCoordinator, FirmsData, NasaFirmsConfigEntry
 
@@ -64,8 +64,10 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
             "wind_bearing": None,
             "wind_direction": None,
             "wind_speed": None,
+            "smoke_offset": None,
         }
     nearest = clusters[0]  # coordinator sorts by distance
+    has_offset = wind is not None and nearest.bearing is not None
     return {
         "nearest_entity_id": coordinator.entity_ids.get(nearest.id),
         "bearing": nearest.bearing,
@@ -73,6 +75,15 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
         "wind_bearing": round(wind.bearing) if wind else None,
         "wind_direction": cardinal(wind.bearing) if wind else None,
         "wind_speed": round(wind.speed, 1) if wind else None,
+        # The angle between where that wind pushes the smoke and the line
+        # from the fire to you — the finished number behind the card's
+        # towards/past/away wording, so no template has to carry the
+        # arithmetic. 0 = straight at you, 180 = straight away. Geometry,
+        # not danger. This sensor keeps its None convention; on the fire
+        # entities the same attributes are absent instead.
+        "smoke_offset": (
+            round(smoke_offset(wind.bearing, nearest.bearing)) if has_offset else None
+        ),
     }
 
 

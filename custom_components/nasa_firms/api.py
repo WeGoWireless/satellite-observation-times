@@ -198,6 +198,24 @@ def cardinal(degrees: float) -> str:
     return CARDINALS[int(((degrees % 360) + 11.25) % 360 / 22.5)]
 
 
+def smoke_offset(wind_bearing: float, fire_bearing: float) -> float:
+    """Angle between where the wind pushes the smoke and the fire-to-you line.
+
+    `fire_bearing` is the bearing from the observer to the fire and
+    `wind_bearing` is where the wind at the fire blows *from* — the two frames
+    every consumer already holds. The smoke travels along `wind_bearing + 180`,
+    the line from the fire to the observer along `fire_bearing + 180`, and the
+    two 180s cancel, so the offset is the plain angular distance between the
+    raw numbers: 0 means the smoke is being pushed straight at the observer,
+    180 straight away, always in 0..180.
+
+    One function instead of the same expression in the blueprint, the card and
+    the docs, so every surface prints the same number. It is geometry, not
+    danger: wind turns, and a fire drifting away is not a fire that is safe.
+    """
+    return abs((wind_bearing - fire_bearing + 180.0) % 360.0 - 180.0)
+
+
 def bbox_around(
     lat: float, lon: float, radius_km: float
 ) -> tuple[float, float, float, float]:
