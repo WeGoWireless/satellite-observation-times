@@ -279,6 +279,13 @@ where **every** satellite fails does not fill it either — the whole update the
 counts as failed and the entities go `unavailable`. Partial trouble shows in
 the attribute, total failure in the state.
 
+Which is also why **a `0` on the hotspots sensor is always a real zero**: a
+cycle that worked and found nothing renders as the number `0` with
+`satellite_errors: {}` beside it, while a cycle that failed entirely never
+renders as a number at all. The strict test in a template is
+`states('sensor.<your_entry>_hotspots') | is_number`; `numeric_state` triggers
+make the same distinction on their own by ignoring `unavailable`.
+
 ## Is the data still arriving?
 
 A cycle that found the same fires as the last one changes no state, so on a
