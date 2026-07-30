@@ -175,14 +175,12 @@ cards:
       **How certain** — {{ state_attr(e, 'confidence') }}. That is the satellite's own confidence that this is a real fire rather than a false alarm; it runs low, nominal, high.
       **When** — {{ state_attr(e, 'acquired') }}, seen by {{ state_attr(e, 'satellites') | join(' and ') }}.
       {%- endif %}
-      {%- set fire = state_attr(s, 'bearing') %}
-      {%- set wind = state_attr(s, 'wind_bearing') %}
+      {%- set off = state_attr(s, 'smoke_offset') %}
       {%- set speed = state_attr(s, 'wind_speed') %}
-      {% if wind is none or fire is none %}
+      {% if off is none %}
       **Wind** — no reading for the fire's location at the moment.
       {%- else %}
-      {%- set off = (((wind - fire) + 180) % 360 - 180) | abs %}
-      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ states(w) | float | round(1) }} {{ state_attr(w, 'unit_of_measurement') }}, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off | round }}° off the line to you).
+      **Wind at the fire** — from the {{ state_attr(s, 'wind_direction') }} at {{ states(w) | float | round(1) }} {{ state_attr(w, 'unit_of_measurement') }}, pushing the smoke {% if off <= 60 %}**towards you**{% elif off <= 120 %}**past you to one side**{% else %}**away from you**{% endif %} ({{ off }}° off the line to you).
       {%- if speed < 3 %}
       At this wind speed the direction says little — forecast models disagree by tens of degrees in light wind.
       {%- endif %}
@@ -221,10 +219,10 @@ in miles — while the markers on the map above it stay in kilometres, because
 
 ### About the wind sentence
 
-It puts the geometry into words — the same calculation as the
-[upwind/downwind recipe](templates.md#upwind-or-downwind-work-it-out-yourself),
-stated as *towards*, *past* or *away from* you, **with the angle itself in
-brackets**.
+It puts the geometry into words — the `smoke_offset` attribute the sensor
+carries ([what it is and how it is
+derived](templates.md#upwind-or-downwind-work-it-out-yourself)), stated as
+*towards*, *past* or *away from* you, **with the angle itself in brackets**.
 
 The three words split the half-circle into equal thirds, at 60° and 120°. Those
 are not arbitrary: at exactly 60° the part of the smoke's movement that runs

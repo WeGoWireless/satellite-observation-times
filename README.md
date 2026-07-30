@@ -19,7 +19,7 @@ and fixes what that approach structurally can't:
 | MAP_KEY | visible in the entry title | stored in config data, never displayed |
 | Polling | every 5 min | every 15 min, matching NASA's refresh cadence |
 | Count / nearest-distance sensors | template DIY | built in, plus max FRP |
-| Wind at the fire | not available | fetched for the nearest fire's own coordinates |
+| Wind at the fire | not available | fetched at each fire's own coordinates, with the smoke-drift angle per fire |
 
 ![Deduplicated FIRMS fire detections on the standard Home Assistant map card](assets/map-live-fires.png)
 
@@ -116,10 +116,10 @@ Per config entry:
 | Entity | Meaning |
 |---|---|
 | `sensor.<name>_hotspots` | Number of deduplicated fires in the radius (attributes: raw detections, per-satellite counts, fetch errors, `truncated`, `ignored_detections`) |
-| `sensor.<name>_nearest_hotspot` | Distance to the closest fire (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed` — the last one is the raw value in **m/s**, for calculating with |
+| `sensor.<name>_nearest_hotspot` | Distance to the closest fire (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed`, `smoke_offset` — `wind_speed` is the raw value in **m/s**, for calculating with |
 | `sensor.<name>_wind_at_nearest_hotspot` | The same wind speed as an entity, so it carries its unit and follows your unit system (km/h on a metric instance, mph on a US one). Put this one on a dashboard |
-| `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW |
-| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin` |
+| `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW, with `strongest_entity_id` pointing at the fire it comes from |
+| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin` — plus `wind_bearing`, `wind_direction`, `wind_speed` and `smoke_offset` on the nearest fires ([see below](#wind-and-smoke-drift)) |
 
 **The distance is not always in kilometres, and the fires always are.** The
 nearest-hotspot sensor is a distance sensor, so Home Assistant shows it in your
@@ -151,6 +151,39 @@ ever handed out twice. The matching starts over whenever the entry reloads
 (a Home Assistant restart, or saving the options), but a fire that has not
 drifted in the meantime gets the same id back from its coordinates anyway.
 
+## Wind and smoke drift
+
+The wind is fetched **at each fire's own coordinates** — not at your house,
+which can sit in different weather entirely. The **three nearest fires** get a
+reading each cycle (configurable up to five in the *Configure* dialog), and
+each of them carries four attributes: `wind_bearing`, `wind_direction`,
+`wind_speed`, and **`smoke_offset`** — the angle between where the wind pushes
+the smoke and the line from that fire to you. `0°` means the smoke is being
+pushed straight at you, `180°` straight away. With it, an automation can say
+"fire within 20 km **and** drifting my way" instead of alerting on distance
+alone — [the recipe](docs/templates.md#wind-at-the-fire).
+
+Fires beyond that count simply lack the attributes. For any single one of
+them, the `nasa_firms.get_wind` action returns the same values on demand:
+
+```yaml
+action: nasa_firms.get_wind
+data:
+  entity_id: geo_location.wildfire_hotspot_43_61_3_93
+response_variable: wind
+```
+
+The count is a budget, not a tuning knob: every reading is one request to MET
+Norway per refresh, and all installations of this integration share one
+identity with their service. Five per cycle is where a thousand installations
+still sit comfortably inside met.no's stated limits.
+
+**This is geometry, not danger.** `smoke_offset` says where the air at the
+fire is moving right now — not where the smoke ends up, and not whether you
+are safe. Wind turns, slope and fuel matter as much, and a fire drifting away
+is not a fire that is safe.
+[The caveats in full](docs/templates.md#upwind-or-downwind-work-it-out-yourself).
+
 ## Recipes
 
 The examples live next to the code rather than on this page, so they stay in
@@ -160,8 +193,8 @@ step with the version you installed:
   mean, showing two locations apart, and a complete card that explains every
   number it prints.
 - **[Templates and automations](docs/templates.md)** — reading the nearest
-  fire's attributes, the wind at it, upwind/downwind maths, a proximity alert,
-  and how to tell when your data is incomplete.
+  fire's attributes, the wind and smoke drift at any fire, a proximity alert,
+  a watchdog for the data feed, and how to tell when your data is incomplete.
 
 ## Honest limitations
 
@@ -182,7 +215,7 @@ step with the version you installed:
   meters of positional tolerance.
 - **The wind is a forecast, not a verdict.** It is looked up for the fire's grid
   cell, it turns, and terrain beats it. The integration reports observations and
-  never scores your risk —
+  never scores your risk — `smoke_offset` is an angle, not a threat level —
   [the caveats are spelled out in full](docs/templates.md#upwind-or-downwind-work-it-out-yourself).
 
 ## Roadmap

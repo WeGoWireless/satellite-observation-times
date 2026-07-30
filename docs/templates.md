@@ -46,9 +46,13 @@ across a valley:
 | `wind_bearing` | Direction the wind is blowing **from**, in degrees (0 = from the north) |
 | `wind_direction` | The same, as a 16-point compass abbreviation (`SW`, `NNE`, …) |
 | `wind_speed` | Wind speed at 10 m above ground, always in **m/s** — the raw value, for calculating with |
+| `smoke_offset` | Angle between where that wind pushes the smoke and the line from the fire to you: `0` = straight at you, `180` = straight away. The finished number behind the card's *towards / past / away* wording |
 
 `wind_direction` is the one to put on a dashboard; `wind_bearing` is the one to
 calculate with, exactly like `direction` and `bearing` for the fire itself.
+`smoke_offset` is the one to automate on: "closer than 20 km **and**
+`smoke_offset` below 60" is the rule this integration exists to enable, and no
+template has to carry the arithmetic.
 
 **For the speed, use the entity, not the attribute.**
 `sensor.<name>_wind_at_nearest_hotspot` carries the same reading with its unit
@@ -59,12 +63,65 @@ without saying so. Reading `4.4` next to a sensor whose unit is `km` is how this
 distinction got added in the first place.
 
 Source: [met.no Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation).
-One request per 15-minute cycle, for the nearest fire only, cached according to
-met.no's own `Expires` header. All three attributes are `None` when there is no
-fire in range or the lookup did not succeed — the fire data is unaffected
-either way.
+One request per fire per 15-minute cycle, cached according to met.no's own
+`Expires` header. All four attributes are `None` when there is no fire in range
+or the lookup did not succeed — the fire data is unaffected either way.
+
+### The nearest fires carry their own wind
+
+Not only the sensor: the **three nearest fires** — configurable up to five
+under *Configure* → *Satellites and filters* — each carry `wind_bearing`,
+`wind_direction`, `wind_speed` and `smoke_offset` on the fire entity itself,
+each computed from that fire's own coordinates and bearing. Per-fire on
+purpose: a forecast is a grid cell, and applying the near fire's wind to one
+forty kilometres further out would be a plausible-looking wrong number.
+
+On fires beyond that count the attributes are **absent entirely**, not `None`
+— so "does this fire have a reading" is a presence check, which is exactly
+what a filtering template wants. All fires currently drifting your way:
+
+```jinja
+{% for f in states.geo_location
+   | selectattr('attributes.source', 'eq', 'nasa_firms')
+   | selectattr('attributes.smoke_offset', 'defined')
+   | selectattr('attributes.smoke_offset', 'le', 60) %}
+{{ f.name }}: {{ f.state }} km {{ f.attributes.direction }}, {{ f.attributes.smoke_offset }}° off the line to you
+{% endfor %}
+```
+
+The count is a budget. Every reading is one met.no request per refresh, and
+every installation of this integration shares one identity with their service
+— five per cycle is where a thousand installations still sit comfortably
+inside met.no's stated limits. That is also why it is an option at all: like
+the satellite choice, it changes what the integration asks external services
+for.
+
+### Any other fire: the `get_wind` action
+
+For a fire outside the budget, ask for it directly — same cache, same
+rate-limit respect, one request at most:
+
+```yaml
+action: nasa_firms.get_wind
+data:
+  entity_id: geo_location.wildfire_hotspot_43_45_4_90
+response_variable: wind
+# wind.wind_bearing, wind.wind_direction, wind.wind_speed,
+# wind.smoke_offset, wind.forecast_time
+```
+
+Try it in Developer tools → Actions first — the entity picker only offers
+this integration's fires. When no reading is available (met.no unreachable or
+rate limited), the action **raises an error rather than returning empty
+values**; in an automation that should carry on regardless, set
+`continue_on_error: true` on the step.
 
 ### Upwind or downwind: work it out yourself
+
+You do not have to any more: this exact calculation ships as `smoke_offset`,
+on the sensor and on every fire with a reading. The recipe stays because a
+number you can re-derive is a number you can trust — and because the pieces
+are what any variant of your own starts from.
 
 `bearing` is measured **from you to the fire**, `wind_bearing` is the direction
 the wind comes **from** at the fire. The wind pushes smoke towards
@@ -110,44 +167,31 @@ channel stays the authority on whether to act.
 
 ### The same maths for a fire that is not the closest
 
-Every fire carries its own `bearing` and `direction`, so the calculation works
-for any of them — take the bearing off the fire entity instead of off the
-sensor:
+Nothing to borrow any more: a fire inside the wind budget carries its own
+reading, computed at its own coordinates against its own bearing —
 
 ```jinja
 {% set f = 'geo_location.wildfire_hotspot_43_45_4_90' %}
-{% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
-{% set fire = state_attr(f, 'bearing') %}
-{% set wind = state_attr(s, 'wind_bearing') %}
-{% if fire is not none and wind is not none %}
-  {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
+{% if state_attr(f, 'smoke_offset') is not none %}
   Fire {{ states(f) }} km {{ state_attr(f, 'direction') }},
-  {{ delta }}° off the line towards you.
+  smoke {{ state_attr(f, 'smoke_offset') }}° off the line towards you.
 {% endif %}
 ```
 
-**The wind in it is still the nearest fire's**, because that is the only point
-looked up. Using it for a different fire is a judgement about how far one
-reading carries, and it is yours to make:
-
-- **A few kilometres is fine.** The lookup is rounded to about 1 km before it
-  is sent, and the forecast grid behind it is coarser than that — a fire two
-  kilometres from the one we asked about is genuinely covered by the same
-  reading.
-- **Tens of kilometres is not.** That is several grid cells, i.e. different
-  weather, and the number you would get is arithmetic rather than an
-  observation.
-- **In mountains it can be wrong at any distance.** Valley winds do not care
-  how close two points look on a map.
-
-If the fire you care about is far from the nearest one, treat the angle as
-undefined instead of as a number you happen to be able to compute.
+— and a fire outside it is what [the `get_wind`
+action](#any-other-fire-the-get_wind-action) is for. Earlier versions of this
+page showed how to apply the nearest fire's wind to a different fire; that
+recipe is gone on purpose. A forecast covers a grid cell, and beyond a few
+kilometres — in mountains, at any distance — the borrowed number is
+arithmetic, not an observation. Per-fire readings exist precisely so nobody
+has to make that judgement call.
 
 ### What leaves your instance
 
-When there is a fire in range, its coordinates — rounded to about 1 km — are
-sent to met.no once per update cycle to look up the wind. Nothing about your own
-location, your MAP_KEY or your instance is included.
+When there are fires in range, the coordinates of the nearest ones — as many
+as the wind budget covers, rounded to about 1 km — are sent to met.no once per
+update cycle to look up the wind, and one more per `get_wind` call. Nothing
+about your own location, your MAP_KEY or your instance is included.
 
 ## Proximity alert
 
@@ -225,3 +269,48 @@ are too low; shrink the radius or raise the confidence/FRP filter.
 `ignored_detections` is how many detections your
 [ignore zones](../README.md#ignore-zones) removed — useful to confirm a zone is
 doing what you meant it to.
+
+**`satellite_errors`** names each satellite whose fetch failed this cycle and
+why — a timeout ("FIRMS request timed out after 60 s"), a connection error, an
+HTTP status. The other satellites' data is unaffected, so the counts are
+merely *lower*, not gone. Two things it never holds: a **rejected MAP_KEY**
+starts the re-authentication flow instead of filling an attribute, and a cycle
+where **every** satellite fails does not fill it either — the whole update then
+counts as failed and the entities go `unavailable`. Partial trouble shows in
+the attribute, total failure in the state.
+
+## Is the data still arriving?
+
+A cycle that found the same fires as the last one changes no state, so on a
+dashboard "nothing changed" and "nothing arrived" look identical. Home
+Assistant keeps the two apart: every entity has a `last_reported` timestamp
+that is refreshed on **every** update, including one that changed nothing —
+and unlike a "last updated" attribute, it costs the recorder nothing.
+
+```yaml
+template:
+  - binary_sensor:
+      - name: "FIRMS feed stale"
+        state: >
+          {{ (now() - states['sensor.firms_43_60_3_90_hotspots'].last_reported)
+             .total_seconds() > 3600 }}
+```
+
+An hour is four missed cycles — one flaky poll should not page you. For a hard
+outage — Home Assistant failed to set up the entry, or every satellite fetch
+failed — the entities go `unavailable` instead, so that is a second trigger:
+
+```yaml
+automation:
+  triggers:
+    - trigger: state
+      entity_id: sensor.firms_43_60_3_90_hotspots
+      to: "unavailable"
+      for: "00:10:00"
+```
+
+**The `for:` is not optional.** Every reload passes through a brief
+`unavailable` — a restart, saving options — and checked against a live
+instance's history, every `unavailable` phase this integration had ever
+produced there was exactly that. Without the delay this alert fires on every
+configuration change.
