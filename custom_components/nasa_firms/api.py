@@ -20,6 +20,11 @@ import aiohttp
 
 BASE_URL = "https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/{region}/{map_key}/"
 
+# Generous on purpose: the regional MapServers routinely take double-digit
+# seconds over a busy box. In the message as well as in the code, so the two
+# can never disagree.
+FIRMS_TIMEOUT = 60
+
 KM_PER_DEG_LAT = 111.0
 EARTH_DIAMETER_KM = 12742.0
 
@@ -140,6 +145,10 @@ WEATHER_MAX_STEP_AGE = timedelta(hours=1)
 
 # met.no permanently bans clients that keep pushing after being throttled.
 WEATHER_RATE_LIMIT_BACKOFF = timedelta(hours=1)
+
+# Tighter than the FIRMS one: met.no answers in well under a second when it
+# answers at all, and the wind is garnish — the fire data must not wait for it.
+WEATHER_TIMEOUT = 30
 
 # One cached forecast per rounded coordinate pair. The consumer asks about a
 # handful of nearby fires per cycle plus the odd one-off lookup; beyond this
@@ -494,10 +503,16 @@ class FirmsClient:
             "outputformat": "geojson",
         }
         try:
-            async with asyncio.timeout(60):
+            async with asyncio.timeout(FIRMS_TIMEOUT):
                 resp = await self._session.get(url, params=params)
                 body = await resp.text()
-        except (TimeoutError, aiohttp.ClientError) as err:
+        except TimeoutError as err:
+            # str() of a TimeoutError is empty, so folding it into the generic
+            # message put "FIRMS request failed: " with nothing after the
+            # colon into satellite_errors — every real timeout on the live
+            # instance read exactly like that. Say what actually happened.
+            raise FirmsError(f"FIRMS request timed out after {FIRMS_TIMEOUT} s") from err
+        except aiohttp.ClientError as err:
             raise FirmsError(f"FIRMS request failed: {err}") from err
         if resp.status in (401, 403):
             raise FirmsAuthError(f"MAP_KEY rejected (HTTP {resp.status})")
@@ -716,14 +731,20 @@ class MetNoClient:
             # Must match the stored Last-Modified verbatim, per their ToS.
             headers["If-Modified-Since"] = entry.last_modified
         try:
-            async with asyncio.timeout(30):
+            async with asyncio.timeout(WEATHER_TIMEOUT):
                 resp = await self._session.get(
                     METNO_URL,
                     params={"lat": f"{key[0]:.4f}", "lon": f"{key[1]:.4f}"},
                     headers=headers,
                 )
                 body = await resp.text()
-        except (TimeoutError, aiohttp.ClientError) as err:
+        except TimeoutError as err:
+            # Same blank-message trap as in FirmsClient.fetch: str() of a
+            # TimeoutError is empty.
+            raise WeatherError(
+                f"met.no request timed out after {WEATHER_TIMEOUT} s"
+            ) from err
+        except aiohttp.ClientError as err:
             raise WeatherError(f"met.no request failed: {err}") from err
 
         if resp.status in (403, 429):

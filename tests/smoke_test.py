@@ -359,7 +359,7 @@ def test_parse_wind() -> None:
     )
 
 
-# --- met.no client --------------------------------------------------------
+# --- clients --------------------------------------------------------------
 class FakeResponse:
     """Just enough of an aiohttp response for the client."""
 
@@ -403,6 +403,55 @@ def ok_response(
         BODY,
         {"Expires": expires, "Last-Modified": last_modified},
     )
+
+
+async def test_firms_client_failures() -> None:
+    """FIRMS failure paths carry a message a person can act on.
+
+    satellite_errors publishes these strings verbatim, and the timeout case
+    is the one that actually happens: three real occurrences in a week on the
+    live instance, every one reading "FIRMS request failed: " with nothing
+    after the colon, because str() of a TimeoutError is empty.
+    """
+    print("FIRMS client: failures")
+    bbox = (43.0, 3.0, 44.0, 4.0)
+
+    client = api.FirmsClient(FakeSession(TimeoutError()), "key", "Europe")
+    try:
+        await client.fetch("noaa20", api.WINDOW_24H, bbox)
+        check("timeout raises FirmsError", False, "no exception")
+    except api.FirmsError as err:
+        check("timeout raises FirmsError", True)
+        check("and the message says so", "timed out" in str(err), f"got {err!r}")
+
+    client = api.FirmsClient(
+        FakeSession(_ClientError("connection reset")), "key", "Europe"
+    )
+    try:
+        await client.fetch("noaa20", api.WINDOW_24H, bbox)
+        check("connection error raises FirmsError", False, "no exception")
+    except api.FirmsError as err:
+        check("connection error raises FirmsError", True)
+        check("keeping the error's own text", "connection reset" in str(err))
+
+    client = api.FirmsClient(FakeSession(FakeResponse(500, "boom", {})), "key", "Europe")
+    try:
+        await client.fetch("noaa20", api.WINDOW_24H, bbox)
+        check("HTTP 500 raises FirmsError", False, "no exception")
+    except api.FirmsError as err:
+        check("HTTP 500 raises FirmsError", True)
+        check("naming the status", "500" in str(err))
+
+    # FirmsAuthError subclasses FirmsError, so getting the plain kind here
+    # would silently skip the reauth flow.
+    client = api.FirmsClient(FakeSession(FakeResponse(403, "denied", {})), "key", "Europe")
+    try:
+        await client.fetch("noaa20", api.WINDOW_24H, bbox)
+        check("HTTP 403 raises FirmsAuthError", False, "no exception")
+    except api.FirmsAuthError:
+        check("HTTP 403 raises FirmsAuthError", True)
+    except api.FirmsError as err:
+        check("HTTP 403 raises FirmsAuthError", False, f"got FirmsError: {err}")
 
 
 async def test_client_request() -> None:
@@ -581,6 +630,14 @@ async def test_client_failures() -> None:
         except Exception as err:  # noqa: BLE001 - the test is the assertion
             check(f"{label} raises WeatherError", False, f"got {type(err).__name__}")
 
+    # The same blank-message trap as on the FIRMS side.
+    client = api.MetNoClient(FakeSession(TimeoutError()), UA)
+    try:
+        await client.wind_at(43.60, 3.90, RECORDED_AT)
+        check("a timeout names itself", False, "no exception")
+    except api.WeatherError as err:
+        check("a timeout names itself", "timed out" in str(err), f"got {err!r}")
+
     check(
         "WeatherError is not a FirmsError",
         not issubclass(api.WeatherError, api.FirmsError),
@@ -598,6 +655,7 @@ def main() -> int:
     test_clustering()
     test_id_carry_over()
     test_parse_wind()
+    asyncio.run(test_firms_client_failures())
     asyncio.run(test_client_request())
     asyncio.run(test_client_caching())
     asyncio.run(test_client_cache_bounds())

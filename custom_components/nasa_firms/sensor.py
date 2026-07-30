@@ -87,6 +87,26 @@ def _nearest_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
     }
 
 
+def _max_frp_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
+    """Pointer to the fire behind the maximum — the nearest_entity_id move.
+
+    Asked for in the community thread by the one user running this as
+    infrastructure: the sensor said how strong the strongest fire is, but not
+    which one it is, so anyone wanting its bearing or confidence had to
+    iterate the fires and re-find the maximum themselves. Ties go to the
+    nearest of the tied fires, because the clusters arrive sorted by distance
+    and max() keeps the first — the same fire the max_frp value comes from.
+    """
+    strongest = max(
+        (c for c in coordinator.data.clusters if c.frp is not None),
+        key=lambda c: c.frp,
+        default=None,
+    )
+    if strongest is None:
+        return {"strongest_entity_id": None}
+    return {"strongest_entity_id": coordinator.entity_ids.get(strongest.id)}
+
+
 SENSORS: tuple[FirmsSensorDescription, ...] = (
     FirmsSensorDescription(
         key="hotspot_count",
@@ -140,6 +160,7 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         icon="mdi:heat-wave",
         suggested_display_precision=1,
         value_fn=lambda d: d.max_frp,
+        attributes_fn=_max_frp_attributes,
     ),
 )
 
