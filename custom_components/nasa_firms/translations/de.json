@@ -48,7 +48,11 @@
           "satellites": "Satelliten",
           "window": "Erkennungszeitraum",
           "min_confidence": "Mindest-Konfidenz",
-          "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)"
+          "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)",
+          "wind_fires": "Feuer mit Windmessung"
+        },
+        "data_description": {
+          "wind_fires": "Für wie viele der nächstgelegenen Feuer pro Zyklus der Wind an ihren eigenen Koordinaten abgefragt wird. Jedes Feuer ist eine Anfrage an MET Norway pro Aktualisierung; Feuer jenseits dieser Zahl tragen keine Windattribute."
         }
       },
       "zones": {

@@ -48,7 +48,11 @@
           "satellites": "Satellites",
           "window": "Detection window",
           "min_confidence": "Minimum confidence",
-          "min_frp": "Minimum fire radiative power (0 = no filter)"
+          "min_frp": "Minimum fire radiative power (0 = no filter)",
+          "wind_fires": "Fires with a wind reading"
+        },
+        "data_description": {
+          "wind_fires": "How many of the nearest fires get the wind at their own coordinates each cycle. Each fire is one MET Norway request per refresh; fires beyond this count carry no wind attributes."
         }
       },
       "zones": {

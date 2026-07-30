@@ -53,15 +53,18 @@ from .const import (
     CONF_MIN_FRP,
     CONF_REGION,
     CONF_SATELLITES,
+    CONF_WIND_FIRES,
     CONF_WINDOW,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
     DEFAULT_RADIUS_M,
     DEFAULT_SATELLITES,
+    DEFAULT_WIND_FIRES,
     DEFAULT_ZONE_RADIUS_M,
     DOMAIN,
     MAP_KEY_URL,
     MAX_RADIUS_M,
+    MAX_WIND_FIRES,
     MAX_ZONE_RADIUS_M,
 )
 
@@ -77,6 +80,22 @@ CONFIDENCE_OPTIONS = [
     SelectOptionDict(value="nominal", label="Nominal or higher"),
     SelectOptionDict(value="high", label="High only"),
 ]
+
+# Options flow only, deliberately not part of the initial setup: the default
+# carries, the setup form is long enough, and this is a budget dial rather
+# than a decision anyone needs to make before seeing the integration work.
+# Coerced to int because the number selector hands back a float, and the
+# coordinator slices a list with this value.
+WIND_SCHEMA = {
+    vol.Required(CONF_WIND_FIRES, default=DEFAULT_WIND_FIRES): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(
+                min=1, max=MAX_WIND_FIRES, step=1, mode=NumberSelectorMode.BOX
+            )
+        ),
+        vol.Coerce(int),
+    ),
+}
 
 # Shared between initial setup and the options flow.
 FILTER_SCHEMA = {
@@ -276,7 +295,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             return self.async_create_entry(data={**self.options, **user_input})
         current = {**self.config_entry.data, **self.options}
         schema = self.add_suggested_values_to_schema(
-            vol.Schema(FILTER_SCHEMA),
+            vol.Schema({**FILTER_SCHEMA, **WIND_SCHEMA}),
             {
                 key: current[key]
                 for key in (
@@ -284,6 +303,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
                     CONF_WINDOW,
                     CONF_MIN_CONFIDENCE,
                     CONF_MIN_FRP,
+                    CONF_WIND_FIRES,
                 )
                 if key in current
             },

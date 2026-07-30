@@ -67,11 +67,17 @@ async def async_get_config_entry_diagnostics(
             "max_frp": data.max_frp,
         },
         "weather": {
-            "have_reading": data.nearest_wind is not None,
+            # readings < wind_fires with failing False is normal — fires
+            # inside one rounded coordinate share a reading, and a parse miss
+            # is silent by design. readings 0 with failing True is an outage.
+            "wind_fires": coordinator.wind_fires,
+            "readings": len(data.wind),
             "failing": coordinator.weather_failing,
-            "bearing": data.nearest_wind.bearing if data.nearest_wind else None,
-            "speed_ms": data.nearest_wind.speed if data.nearest_wind else None,
-            "forecast_step": data.nearest_wind.time if data.nearest_wind else None,
+            "nearest_bearing": data.nearest_wind.bearing if data.nearest_wind else None,
+            "nearest_speed_ms": data.nearest_wind.speed if data.nearest_wind else None,
+            "nearest_forecast_step": (
+                data.nearest_wind.time if data.nearest_wind else None
+            ),
         },
         # No ids and no coordinates: a cluster id is its rounded position.
         "fires": [
@@ -84,6 +90,8 @@ async def async_get_config_entry_diagnostics(
                 "satellites": c.satellites,
                 "detections": c.detections,
                 "acquired": c.acq_datetime,
+                # Membership only — the id itself would be the coordinates.
+                "has_wind": c.id in data.wind,
             }
             for c in data.clusters
         ],

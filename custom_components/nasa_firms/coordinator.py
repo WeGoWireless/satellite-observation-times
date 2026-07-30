@@ -32,13 +32,16 @@ from .const import (
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
     CONF_SATELLITES,
+    CONF_WIND_FIRES,
     CONF_WINDOW,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
     DEFAULT_RADIUS_M,
     DEFAULT_SATELLITES,
+    DEFAULT_WIND_FIRES,
     DOMAIN,
     FETCH_COUNT,
+    MAX_WIND_FIRES,
     UPDATE_INTERVAL,
 )
 
@@ -64,9 +67,17 @@ class FirmsData:
     # Detections dropped by the user's ignore zones. Surfaced so a zone can be
     # seen working — a silent filter on fire data would be worse than none.
     ignored_detections: int = 0
-    # Wind at the nearest fire's own coordinates; None whenever the lookup was
-    # skipped or failed, which is not an error worth surfacing.
-    nearest_wind: WindObservation | None = None
+    # Wind at each fire's own coordinates, keyed by cluster id, for the N
+    # nearest fires only. A fire ranked beyond that budget is simply absent —
+    # not None — and so is any fire whose lookup failed.
+    wind: dict[str, WindObservation] = field(default_factory=dict)
+
+    @property
+    def nearest_wind(self) -> WindObservation | None:
+        """Wind at the closest fire — the shape every consumer grew up with."""
+        if not self.clusters:
+            return None
+        return self.wind.get(self.clusters[0].id)
 
     @property
     def nearest_km(self) -> float | None:
@@ -115,6 +126,13 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.window: str = cfg.get(CONF_WINDOW, WINDOW_24H)
         self.min_confidence: str = cfg.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE)
         self.min_frp: float = cfg.get(CONF_MIN_FRP, DEFAULT_MIN_FRP)
+        # int() because the number selector hands back a float, and a float
+        # cannot slice a list. Clamped against the cap rather than trusted:
+        # the budget promise in the docs must hold even for a hand-edited
+        # entry, since every installation shares one met.no User-Agent.
+        self.wind_fires: int = min(
+            int(cfg.get(CONF_WIND_FIRES, DEFAULT_WIND_FIRES)), MAX_WIND_FIRES
+        )
         self._bbox = bbox_around(self.latitude, self.longitude, self.radius_km)
         # Identifies which entry a fire belongs to. Every entry publishes its
         # fires under the same `nasa_firms` geo_location source, so a map card
@@ -202,7 +220,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # renumber every fire.
         self._previous_clusters = data.clusters
         if data.clusters:
-            data.nearest_wind = await self._async_wind(data.clusters[0])
+            data.wind = await self._async_wind(data.clusters)
         return data
 
     @property
@@ -240,22 +258,36 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             },
         )
 
-    async def _async_wind(self, cluster: FirmsCluster) -> WindObservation | None:
-        """Wind at the closest fire only — a busy box holds hundreds of them.
+    async def _async_wind(
+        self, clusters: list[FirmsCluster]
+    ) -> dict[str, WindObservation]:
+        """Wind at the N nearest fires — a busy box holds hundreds of them.
+
+        Sequential on purpose: nothing here is latency-critical, and a burst
+        of parallel requests is exactly what a rate limit is for. The first
+        failure ends the cycle's lookups — on a throttle the client is backed
+        off anyway, and a met.no that just failed does not need four more
+        tries in the same second. Readings collected before the failure are
+        kept.
 
         Never raises: the fire data is the product, so a weather outage costs
-        two attributes and nothing else.
+        wind attributes and nothing else.
         """
-        try:
-            wind = await self.weather.wind_at(cluster.latitude, cluster.longitude)
-        except WeatherError as err:
-            if not self._weather_failing:
-                self._weather_failing = True
-                _LOGGER.warning(
-                    "Wind lookup failed, continuing without wind attributes: %s", err
-                )
-            else:
-                _LOGGER.debug("Wind lookup still failing: %s", err)
-            return None
+        winds: dict[str, WindObservation] = {}
+        for cluster in clusters[: self.wind_fires]:
+            try:
+                wind = await self.weather.wind_at(cluster.latitude, cluster.longitude)
+            except WeatherError as err:
+                if not self._weather_failing:
+                    self._weather_failing = True
+                    _LOGGER.warning(
+                        "Wind lookup failed, continuing without wind attributes: %s",
+                        err,
+                    )
+                else:
+                    _LOGGER.debug("Wind lookup still failing: %s", err)
+                return winds
+            if wind is not None:
+                winds[cluster.id] = wind
         self._weather_failing = False
-        return wind
+        return winds

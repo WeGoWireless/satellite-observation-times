@@ -10,6 +10,7 @@ CONF_WINDOW = "window"
 CONF_MIN_CONFIDENCE = "min_confidence"
 CONF_MIN_FRP = "min_frp"
 CONF_IGNORE_ZONES = "ignore_zones"
+CONF_WIND_FIRES = "wind_fires"
 
 # A zone is only ever meant to cover a known heat source and its immediate
 # surroundings — a plant, a flare stack, a landfill. Wide enough and it starts
@@ -28,6 +29,16 @@ DEFAULT_RADIUS_M = 100_000
 MAX_RADIUS_M = 500_000
 DEFAULT_MIN_CONFIDENCE = "any"
 DEFAULT_MIN_FRP = 0.0
+
+# How many of the nearest fires get a wind reading each cycle. Configurable
+# because it changes the number of met.no requests, exactly like the satellite
+# choice changes FIRMS calls — the project's own bar for what earns an option.
+# The cap is budget arithmetic, not a technical limit: at 5 fires a cycle,
+# a thousand installations stay comfortably inside met.no's stated request
+# threshold under this integration's shared User-Agent. Fires ranked beyond
+# the limit simply carry no reading.
+DEFAULT_WIND_FIRES = 3
+MAX_WIND_FIRES = 5
 
 # NASA refreshes FIRMS NRT data roughly every 15 minutes — polling faster
 # only burns request quota without new data.
