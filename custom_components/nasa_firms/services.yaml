@@ -1,0 +1,10 @@
+get_wind:
+  fields:
+    entity_id:
+      required: true
+      example: geo_location.wildfire_hotspot_43_61_3_93
+      selector:
+        entity:
+          filter:
+            - integration: nasa_firms
+              domain: geo_location

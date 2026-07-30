@@ -83,6 +83,26 @@
       "zone_radius_too_large": "That zone is too large. An ignore zone covers a known heat source, not a region — keep it to 20 km or less."
     }
   },
+  "services": {
+    "get_wind": {
+      "name": "Get wind at a fire",
+      "description": "Returns the wind at one fire's own coordinates, right now: where it blows from, how fast, and the smoke offset — the angle between where the wind pushes the smoke and the line from that fire to your monitored location (0 = straight at you, 180 = straight away). Works for any fire, including those beyond the per-cycle wind budget. This is the current wind vector, not a forecast of where the smoke ends up, and never a safety assessment.",
+      "fields": {
+        "entity_id": {
+          "name": "Fire",
+          "description": "The fire entity to look up."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_fire": {
+      "message": "{entity_id} is not an active NASA FIRMS fire entity. The fire may have dropped out of the data since you picked it."
+    },
+    "wind_unavailable": {
+      "message": "No wind reading is available for this fire right now. The weather service did not answer, is being rate limited, or its forecast holds no usable step."
+    }
+  },
   "issues": {
     "truncated": {
       "title": "Fires are missing from {name}",

@@ -4,13 +4,29 @@ from __future__ import annotations
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.config_validation import config_entry_only_config_schema
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import FirmsClient, MetNoClient
 from .const import CONF_MAP_KEY, CONF_REGION, DOMAIN, USER_AGENT
 from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
+from .services import async_setup_services
 
 PLATFORMS = [Platform.GEO_LOCATION, Platform.SENSOR]
+
+CONFIG_SCHEMA = config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the domain's actions.
+
+    Done here rather than in async_setup_entry so the action exists exactly
+    once, whatever the number of entries — it resolves the entry from the
+    fire entity it is called with.
+    """
+    async_setup_services(hass)
+    return True
 
 
 @callback

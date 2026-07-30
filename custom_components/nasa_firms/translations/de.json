@@ -83,6 +83,26 @@
       "zone_radius_too_large": "Diese Zone ist zu groß. Eine Ignorierzone deckt eine bekannte Wärmequelle ab, keine Region — höchstens 20 km."
     }
   },
+  "services": {
+    "get_wind": {
+      "name": "Wind an einem Feuer abrufen",
+      "description": "Liefert den Wind an den Koordinaten eines Feuers, jetzt gerade: woher er weht, wie schnell, und den Rauchversatz — den Winkel zwischen der Richtung, in die der Wind den Rauch drückt, und der Linie von diesem Feuer zu deinem überwachten Standort (0 = direkt auf dich zu, 180 = direkt weg). Funktioniert für jedes Feuer, auch jenseits des Wind-Budgets pro Zyklus. Das ist der aktuelle Windvektor, keine Vorhersage, wo der Rauch landet, und niemals eine Sicherheitsbewertung.",
+      "fields": {
+        "entity_id": {
+          "name": "Feuer",
+          "description": "Die Feuer-Entität, die abgefragt werden soll."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_fire": {
+      "message": "{entity_id} ist keine aktive NASA-FIRMS-Feuer-Entität. Das Feuer ist möglicherweise aus den Daten verschwunden, seit du es ausgewählt hast."
+    },
+    "wind_unavailable": {
+      "message": "Für dieses Feuer ist gerade keine Windmessung verfügbar. Der Wetterdienst hat nicht geantwortet, drosselt Anfragen, oder seine Vorhersage enthält keinen brauchbaren Zeitschritt."
+    }
+  },
   "issues": {
     "truncated": {
       "title": "Bei {name} fehlen Feuer",
