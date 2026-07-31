@@ -120,6 +120,10 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
             "satellite_errors": c.data.satellite_errors,
             "truncated": c.data.truncated,
             "ignored_detections": c.data.ignored_detections,
+            # Next to the manual zones' count on purpose: this filter picks its
+            # own targets, so the number it drops belongs where someone will
+            # trip over it, not only in a diagnostics download.
+            "auto_ignored_detections": c.data.auto_ignored_detections,
         },
     ),
     FirmsSensorDescription(

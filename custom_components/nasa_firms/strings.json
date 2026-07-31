@@ -49,10 +49,12 @@
           "window": "Detection window",
           "min_confidence": "Minimum confidence",
           "min_frp": "Minimum fire radiative power (0 = no filter)",
-          "wind_fires": "Fires with a wind reading"
+          "wind_fires": "Fires with a wind reading",
+          "auto_ignore": "Hide learned persistent heat sources"
         },
         "data_description": {
-          "wind_fires": "How many of the nearest fires get the wind at their own coordinates each cycle. Each fire is one MET Norway request per refresh; fires beyond this count carry no wind attributes."
+          "wind_fires": "How many of the nearest fires get the wind at their own coordinates each cycle. Each fire is one MET Norway request per refresh; fires beyond this count carry no wind attributes.",
+          "auto_ignore": "Learns which spots radiate month after month — factories, flare stacks, kilns — and hides their routine detections. A spot has to appear across 60 days before it counts, so this does nothing for the first two months. A detection much brighter than that spot's usual output is always shown, so a real fire next to a factory still comes through."
         }
       },
       "zones": {

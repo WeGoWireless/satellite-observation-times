@@ -10,7 +10,9 @@ from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_RADIUS
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import (
     CONFIDENCE_RANK,
@@ -19,6 +21,7 @@ from .api import (
     FirmsClient,
     FirmsCluster,
     MetNoClient,
+    PersistentSources,
     WeatherError,
     WindObservation,
     bbox_around,
@@ -28,12 +31,14 @@ from .api import (
 )
 from .const import (
     CLUSTER_RADIUS_KM,
+    CONF_AUTO_IGNORE,
     CONF_IGNORE_ZONES,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
     CONF_SATELLITES,
     CONF_WIND_FIRES,
     CONF_WINDOW,
+    DEFAULT_AUTO_IGNORE,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
     DEFAULT_RADIUS_M,
@@ -42,6 +47,8 @@ from .const import (
     DOMAIN,
     FETCH_COUNT,
     MAX_WIND_FIRES,
+    SOURCES_STORAGE_KEY,
+    SOURCES_STORAGE_VERSION,
     UPDATE_INTERVAL,
 )
 
@@ -67,6 +74,11 @@ class FirmsData:
     # Detections dropped by the user's ignore zones. Surfaced so a zone can be
     # seen working — a silent filter on fire data would be worse than none.
     ignored_detections: int = 0
+    # Detections dropped because they sat on a learned persistent source and
+    # looked like its usual output. Counted separately from the manual zones
+    # for the same reason those are counted at all: this one decides on its
+    # own, so it has to be even easier to see doing it.
+    auto_ignored_detections: int = 0
     # Wind at each fire's own coordinates, keyed by cluster id, for the N
     # nearest fires only. A fire ranked beyond that budget is simply absent —
     # not None — and so is any fire whose lookup failed.
@@ -133,6 +145,16 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.wind_fires: int = min(
             int(cfg.get(CONF_WIND_FIRES, DEFAULT_WIND_FIRES)), MAX_WIND_FIRES
         )
+        self.auto_ignore: bool = cfg.get(CONF_AUTO_IGNORE, DEFAULT_AUTO_IGNORE)
+        # The per-cell history behind the automatic ignores. Recorded on every
+        # cycle whatever `auto_ignore` says, and only *consulted* when it is
+        # on: a source needs 60 days to be recognised, so building the history
+        # only after the switch is flipped would mean two months of nothing
+        # happening. This way the feature works the day it is enabled.
+        self._sources = PersistentSources()
+        self._sources_store: Store = Store(
+            hass, SOURCES_STORAGE_VERSION, f"{SOURCES_STORAGE_KEY}.{entry.entry_id}"
+        )
         self._bbox = bbox_around(self.latitude, self.longitude, self.radius_km)
         # Identifies which entry a fire belongs to. Every entry publishes its
         # fires under the same `nasa_firms` geo_location source, so a map card
@@ -149,6 +171,18 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # after a restart the entities are rebuilt anyway, and every fire that
         # has not drifted since gets the same id from its coordinates.
         self._previous_clusters: list[FirmsCluster] = []
+
+    async def async_load_sources(self) -> None:
+        """Restore the learned source history before the first refresh.
+
+        Called from async_setup_entry rather than lazily: the very first cycle
+        after a restart already filters, and without the history it would show
+        every factory again for one cycle — a burst of fires that are not
+        fires, right after a restart, is exactly the failure people report.
+        """
+        self._sources = PersistentSources.from_dict(
+            await self._sources_store.async_load()
+        )
 
     async def _async_update_data(self) -> FirmsData:
         results = await asyncio.gather(
@@ -187,14 +221,37 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # reload the entry (see __init__.py), but reading them here means this
         # holds regardless of how the zones got there.
         zones = self.config_entry.options.get(CONF_IGNORE_ZONES) or []
-        within: list = []
-        ignored = 0
+        in_radius: list = []
         for h in hotspots:
             dist = haversine_km(self.latitude, self.longitude, h.latitude, h.longitude)
-            if dist > self.radius_km:
-                continue
+            if dist <= self.radius_km:
+                in_radius.append((h, dist))
+
+        # Learn from everything inside the radius, before any filter runs. A
+        # baseline computed from an already-filtered sample would sit too high
+        # and suppress more than it should, which is the one direction this
+        # must not fail in. Outside the radius is skipped: those detections can
+        # never be shown, so their history would be dead weight in the store.
+        self._sources.record(
+            [
+                (h.latitude, h.longitude, h.frp, (h.acq_datetime or "")[:10])
+                for h, _ in in_radius
+            ],
+            dt_util.utcnow().date(),
+        )
+        self._sources_store.async_delay_save(self._sources.as_dict, 60)
+
+        within: list = []
+        ignored = 0
+        auto_ignored = 0
+        for h, dist in in_radius:
             if in_ignored_zone(h.latitude, h.longitude, zones):
                 ignored += 1
+                continue
+            if self.auto_ignore and self._sources.is_suppressed(
+                h.latitude, h.longitude, h.frp
+            ):
+                auto_ignored += 1
                 continue
             if (
                 self.min_confidence != "any"
@@ -208,6 +265,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
 
         data.raw_detections = len(within)
         data.ignored_detections = ignored
+        data.auto_ignored_detections = auto_ignored
         data.clusters = cluster_hotspots(
             within,
             CLUSTER_RADIUS_KM,
@@ -227,6 +285,19 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
     def weather_failing(self) -> bool:
         """Whether the wind lookup is currently backed off. For diagnostics."""
         return self._weather_failing
+
+    @property
+    def sources(self) -> PersistentSources:
+        """The learned persistent-source history. For diagnostics.
+
+        No manual reset is offered, because the history expires on its own: a
+        source that stops radiating stops refreshing its days, and once the
+        retention window has carried enough of them away its span drops back
+        under the threshold and it is simply no longer a known source. A plant
+        that shuts down therefore fades out by itself, and in the meantime it
+        has nothing left to suppress anyway.
+        """
+        return self._sources
 
     @callback
     def _async_sync_truncation_issue(self, truncated: bool) -> None:

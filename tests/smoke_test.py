@@ -17,7 +17,7 @@ import importlib.util
 import json
 import sys
 import types
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 # --- stub aiohttp so api.py imports on a bare interpreter -----------------
@@ -208,6 +208,87 @@ def test_ignore_zones() -> None:
     ]
     check("a malformed zone is skipped, not fatal", not inside(43.60, 3.90, broken))
     check("and does not stop a valid one", inside(43.60, 3.90, [*broken, zone]))
+
+
+def test_persistent_sources() -> None:
+    """A learned source is hidden; anything brighter than it still shows.
+
+    The numbers mirror the calibration this rule came from: an industrial cell
+    is recognised by a long calendar span, and the brightness test is relative
+    to the cell's own history rather than to any megawatt constant.
+    """
+    print("persistent sources")
+    today = date(2026, 7, 31)
+
+    key = api.source_cell_key
+    check(
+        "neighbouring points share a cell",
+        key(43.6000, 3.9000) == key(43.6002, 3.9002),
+    )
+    check(
+        "points 3 km apart do not",
+        key(43.6000, 3.9000) != key(43.6300, 3.9000),
+    )
+
+    # A week of activity is not a source, however busy.
+    young = api.PersistentSources()
+    young.record(
+        [(43.60, 3.90, 5.0, f"2026-07-{day:02d}") for day in range(20, 28)], today
+    )
+    check("a week of detections is not a source", not young.is_suppressed(43.60, 3.90, 5.0))
+
+    # Spread the same handful of days across three months instead.
+    sources = api.PersistentSources()
+    plant_days = ["2026-05-02", "2026-05-20", "2026-06-11", "2026-06-30", "2026-07-24"]
+    sources.record([(43.60, 3.90, 10.0, d) for d in plant_days], today)
+    check("five days across 60+ is a source", sources.is_suppressed(43.60, 3.90, 10.0))
+    check("a routine detection is suppressed", sources.is_suppressed(43.60, 3.90, 25.0))
+    # Baseline is 10 MW, so the ceiling sits at 30 MW.
+    check("one just over the ceiling is shown", not sources.is_suppressed(43.60, 3.90, 31.0))
+    check(
+        "the Bordeaux case: 168 MW on a 10 MW source is shown",
+        not sources.is_suppressed(43.60, 3.90, 168.5),
+    )
+    check("a cell with no history is untouched", not sources.is_suppressed(1.0, 1.0, 1.0))
+
+    # One busy day cannot raise the baseline: the day contributes its peak and
+    # nothing more, which is what keeps a fire from teaching the cell to hide it.
+    loud = api.PersistentSources()
+    loud.record(
+        [(43.60, 3.90, 10.0, d) for d in plant_days]
+        + [(43.60, 3.90, 400.0, "2026-07-26") for _ in range(300)],
+        today,
+    )
+    check("300 detections in one day do not move the median",
+          loud.is_suppressed(43.60, 3.90, 25.0))
+    check("and that day's own fire still shows",
+          not loud.is_suppressed(43.60, 3.90, 400.0))
+
+    # A cell whose readings are all zero must not end up with a zero ceiling.
+    quiet = api.PersistentSources()
+    quiet.record([(43.60, 3.90, 0.0, d) for d in plant_days], today)
+    check("a zero baseline still suppresses its own zeroes",
+          quiet.is_suppressed(43.60, 3.90, 0.0))
+    check("but not a real fire on top of it",
+          not quiet.is_suppressed(43.60, 3.90, 500.0))
+
+    # Ageing out: nothing recorded for long enough and the span collapses.
+    aged = api.PersistentSources()
+    aged.record([(43.60, 3.90, 10.0, d) for d in plant_days], date(2027, 1, 1))
+    check("a source that stopped ages out of the window",
+          not aged.is_suppressed(43.60, 3.90, 10.0))
+
+    restored = api.PersistentSources.from_dict(sources.as_dict())
+    check("the store round-trips the decision",
+          restored.is_suppressed(43.60, 3.90, 10.0)
+          and not restored.is_suppressed(43.60, 3.90, 168.5))
+    check("a malformed store does not raise",
+          api.PersistentSources.from_dict({"bogus": {}, "x:y": {"a": 1}}).tracked_cells
+          == 0)
+    check("None instead of a store is safe",
+          api.PersistentSources.from_dict(None).tracked_cells == 0)
+    check("a detection with no date is skipped",
+          api.PersistentSources().record([(43.6, 3.9, 5.0, "")], today) is None)
 
 
 def test_clustering() -> None:
@@ -652,6 +733,7 @@ def main() -> int:
     test_confidence()
     test_intensity()
     test_ignore_zones()
+    test_persistent_sources()
     test_clustering()
     test_id_carry_over()
     test_parse_wind()

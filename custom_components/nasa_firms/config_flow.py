@@ -22,6 +22,7 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     LocationSelector,
     LocationSelectorConfig,
     NumberSelector,
@@ -47,6 +48,7 @@ from .api import (
     region_for,
 )
 from .const import (
+    CONF_AUTO_IGNORE,
     CONF_IGNORE_ZONES,
     CONF_MAP_KEY,
     CONF_MIN_CONFIDENCE,
@@ -55,6 +57,7 @@ from .const import (
     CONF_SATELLITES,
     CONF_WIND_FIRES,
     CONF_WINDOW,
+    DEFAULT_AUTO_IGNORE,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
     DEFAULT_RADIUS_M,
@@ -95,6 +98,14 @@ WIND_SCHEMA = {
         ),
         vol.Coerce(int),
     ),
+}
+
+# Options flow only, for the same reason as the wind budget and one more: it
+# does nothing for the first 60 days, so offering it during setup would be
+# offering a switch that cannot be observed to work. By the time it is worth
+# turning on, the user has been in the options at least once anyway.
+AUTO_IGNORE_SCHEMA = {
+    vol.Required(CONF_AUTO_IGNORE, default=DEFAULT_AUTO_IGNORE): BooleanSelector(),
 }
 
 # Shared between initial setup and the options flow.
@@ -290,12 +301,12 @@ class NasaFirmsOptionsFlow(OptionsFlow):
     async def async_step_filters(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Satellites, detection window, confidence and FRP thresholds."""
+        """Satellites, detection window, confidence, FRP and automatic ignores."""
         if user_input is not None:
             return self.async_create_entry(data={**self.options, **user_input})
         current = {**self.config_entry.data, **self.options}
         schema = self.add_suggested_values_to_schema(
-            vol.Schema({**FILTER_SCHEMA, **WIND_SCHEMA}),
+            vol.Schema({**FILTER_SCHEMA, **WIND_SCHEMA, **AUTO_IGNORE_SCHEMA}),
             {
                 key: current[key]
                 for key in (
@@ -304,6 +315,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
                     CONF_MIN_CONFIDENCE,
                     CONF_MIN_FRP,
                     CONF_WIND_FIRES,
+                    CONF_AUTO_IGNORE,
                 )
                 if key in current
             },

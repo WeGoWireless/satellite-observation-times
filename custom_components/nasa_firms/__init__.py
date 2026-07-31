@@ -5,11 +5,19 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_validation import config_entry_only_config_schema
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import FirmsClient, MetNoClient
-from .const import CONF_MAP_KEY, CONF_REGION, DOMAIN, USER_AGENT
+from .const import (
+    CONF_MAP_KEY,
+    CONF_REGION,
+    DOMAIN,
+    SOURCES_STORAGE_KEY,
+    SOURCES_STORAGE_VERSION,
+    USER_AGENT,
+)
 from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
 from .services import async_setup_services
 
@@ -60,6 +68,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) ->
         USER_AGENT.format(version=async_get_loaded_integration(hass, DOMAIN).version),
     )
     coordinator = FirmsCoordinator(hass, entry, client, weather)
+    # Before the first refresh, not after: that refresh already filters, and
+    # without the learned history it would republish every known factory for
+    # one cycle. A burst of fires that are not fires, right after a restart,
+    # is precisely the thing someone opens an issue about.
+    await coordinator.async_load_sources()
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -77,3 +90,16 @@ async def _async_options_updated(
 async def async_unload_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> None:
+    """Delete the learned source history along with the entry.
+
+    The store is keyed per entry and nothing else references it, so removing
+    the entry without this would leave a file in .storage that no code ever
+    opens again — and it holds the coordinates of everything the entry has
+    ever seen burn.
+    """
+    await Store(
+        hass, SOURCES_STORAGE_VERSION, f"{SOURCES_STORAGE_KEY}.{entry.entry_id}"
+    ).async_remove()

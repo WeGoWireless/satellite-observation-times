@@ -11,8 +11,8 @@ import asyncio
 import json
 import math
 from collections import OrderedDict
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -469,6 +469,220 @@ def cluster_hotspots(
             cluster.id = f"{base}#{suffix}"
         seen.add(cluster.id)
     return clusters
+
+
+# --- Persistent thermal sources -------------------------------------------
+#
+# Factories, flare stacks and kilns radiate around the clock and land in the
+# feed as fires. NASA maintains exactly this mask ("Static Thermal Anomalies",
+# 400 m grid, >=5 detections per calendar year) but publishes it as
+# "not available for distribution", and the WFS carries no such layer — so we
+# build it from what we can see ourselves.
+#
+# WHY THESE NUMBERS. Calibrated 2026-07-31 against 39,397 real detections over
+# 92 days in seven regions (southern France, UK moors, Permian Basin,
+# Andalusia, Greece, Bordeaux, Etna), with ArcelorMittal Fos, Immingham,
+# Scunthorpe, Grangemouth and Hope Cement as industrial ground truth. Result:
+# zero detections at or above 50 MW wrongly suppressed. Three earlier rule
+# shapes died on that data and are recorded so they are not retried:
+#
+#   * "count detections over a short window" — a two-day wildfire produces
+#     ~22 detections while NASA's industrial threshold is 5 PER YEAR, so
+#     counting flags every real fire.
+#   * "density = active days / span" — Fos runs on 87 of 92 days, giving it a
+#     density of 0.95, which reads as a fire; meanwhile a 645 MW wildfire that
+#     reflared over 14 days reads as industry. Wrong in both directions.
+#   * "span >= 30 d AND frp_max < 50 MW" — the megawatt constant does not
+#     travel. UK industry reaches 50 MW while UK fires sit at a median of
+#     15.6; in the Permian Basin the flares are brighter than the fires. And a
+#     Saddleworth Moor peat fire spanning 31 days was silenced at 309 MW.
+#
+# What survived: a long calendar span to recognise a source, and a purely
+# relative brightness test to judge each detection. No megawatt constant
+# appears below, which is why it holds across all seven regions.
+
+# 1 km, matching CLUSTER_RADIUS_KM. Not NASA's 400 m: at that size the Fos
+# steelworks smears across 34 cells instead of 9, because a VIIRS pixel grows
+# from 375 m at nadir to ~800 m at the swath edge. NASA can afford 400 m only
+# because their mask is smoothed once a year, offline.
+SOURCE_CELL_SIZE_M = 1000.0
+# A cell becomes a known source once it has been seen across this many
+# calendar days. 60 clears the longest fire in the sample — a 31-day peat
+# fire — with 29 days of margin, and still catches every major plant, whose
+# spans ran 75-92 days.
+SOURCE_MIN_SPAN_DAYS = 60
+# Noise floor. Mildly latitude-sensitive, because overpass density runs 0.85x
+# (Permian) to 1.25x (UK) of the 43.6 N reference, so 5 here means roughly
+# 4-6 elsewhere. Too small a spread to be worth scaling below ~60 N.
+SOURCE_MIN_ACTIVE_DAYS = 5
+# A detection is suppressed only while it stays within this multiple of its
+# cell's own normal brightness. A ratio, not a threshold in MW — that is what
+# makes it portable. 3.0 and 5.0 landed within 2 % of each other, so the rule
+# does not balance on this number.
+SOURCE_FRP_FACTOR = 3.0
+# Slightly more than the span we need, so a source stays recognised through a
+# quiet fortnight.
+SOURCE_RETENTION_DAYS = 100
+
+
+def source_cell_key(latitude: float, longitude: float) -> tuple[int, int]:
+    """Index of the ~1 km cell holding this point.
+
+    Longitude degrees shrink with latitude, so the cell is sized at its own
+    row. Deliberately not a great-circle calculation: the key only has to be
+    stable and roughly square, and this runs for every detection of every
+    cycle.
+    """
+    lat_step = SOURCE_CELL_SIZE_M / 111_000.0
+    cos_lat = max(math.cos(math.radians(latitude)), 0.01)
+    lon_step = SOURCE_CELL_SIZE_M / (111_000.0 * cos_lat)
+    return (math.floor(latitude / lat_step), math.floor(longitude / lon_step))
+
+
+@dataclass
+class CellHistory:
+    """What one cell has shown, one entry per calendar day.
+
+    Only the day's peak FRP is kept, and that is what makes the baseline
+    robust: a fire burning on a handful of days cannot drag the median up,
+    because every day contributes exactly one number no matter whether it
+    carried one detection or three hundred.
+    """
+
+    daily_peak_frp: dict[str, float] = field(default_factory=dict)
+
+    def observe(self, acq_date: str, frp: float | None) -> None:
+        """Fold one detection into the day's peak."""
+        value = frp or 0.0
+        current = self.daily_peak_frp.get(acq_date)
+        if current is None or value > current:
+            self.daily_peak_frp[acq_date] = value
+
+    def prune(self, today: date) -> None:
+        """Drop days that have fallen out of the retention window."""
+        cutoff = (today - timedelta(days=SOURCE_RETENTION_DAYS)).isoformat()
+        for day in [d for d in self.daily_peak_frp if d < cutoff]:
+            del self.daily_peak_frp[day]
+
+    @property
+    def active_days(self) -> int:
+        """Distinct days on which this cell produced anything."""
+        return len(self.daily_peak_frp)
+
+    @property
+    def span_days(self) -> int:
+        """Calendar days from the first record to the last, inclusive."""
+        if not self.daily_peak_frp:
+            return 0
+        days = sorted(self.daily_peak_frp)
+        try:
+            first, last = date.fromisoformat(days[0]), date.fromisoformat(days[-1])
+        except ValueError:
+            return 0
+        return (last - first).days + 1
+
+    @property
+    def is_known_source(self) -> bool:
+        """Whether this cell has been around long enough to be a fixed source."""
+        return (
+            self.active_days >= SOURCE_MIN_ACTIVE_DAYS
+            and self.span_days >= SOURCE_MIN_SPAN_DAYS
+        )
+
+    @property
+    def baseline_frp(self) -> float:
+        """Median of the daily peaks — what this cell normally looks like."""
+        values = sorted(self.daily_peak_frp.values())
+        if not values:
+            return 0.0
+        return values[len(values) // 2]
+
+    def suppresses(self, frp: float | None) -> bool:
+        """Whether this detection is just the source doing its usual thing.
+
+        Anything markedly brighter than the cell's own normal passes through.
+        That is the wildfire-next-door case and it is not hypothetical: near
+        Bordeaux a weak daytime source ran at 5-16 MW for three months, and a
+        real fire broke out in the very same cell at 292 MW.
+        """
+        if not self.is_known_source:
+            return False
+        # The floor keeps a near-zero baseline from collapsing the ceiling to
+        # zero, which would suppress nothing at all.
+        return (frp or 0.0) <= SOURCE_FRP_FACTOR * max(self.baseline_frp, 1.0)
+
+
+class PersistentSources:
+    """Rolling per-cell history, and the suppression decision built on it."""
+
+    def __init__(self, cells: dict[tuple[int, int], CellHistory] | None = None):
+        self._cells: dict[tuple[int, int], CellHistory] = cells or {}
+
+    def record(self, detections: list[tuple[float, float, float | None, str]],
+               today: date) -> None:
+        """Fold one cycle into the history, then drop what has aged out.
+
+        Takes `(latitude, longitude, frp, acq_date)` tuples rather than
+        hotspots so this stays independent of the feed's own shape.
+
+        Feed it the detections *before* the user's confidence and FRP filters.
+        Filtered first, the baseline would be computed from a truncated sample
+        and would sit too high — which suppresses more, in the one direction
+        this feature cannot afford to get wrong.
+        """
+        for latitude, longitude, frp, acq_date in detections:
+            if not acq_date:
+                continue
+            key = source_cell_key(latitude, longitude)
+            self._cells.setdefault(key, CellHistory()).observe(acq_date, frp)
+        for key in list(self._cells):
+            cell = self._cells[key]
+            cell.prune(today)
+            if not cell.daily_peak_frp:
+                del self._cells[key]
+
+    def is_suppressed(
+        self, latitude: float, longitude: float, frp: float | None
+    ) -> bool:
+        """Whether this detection sits on a known source and looks routine."""
+        cell = self._cells.get(source_cell_key(latitude, longitude))
+        return bool(cell and cell.suppresses(frp))
+
+    @property
+    def known_sources(self) -> list[CellHistory]:
+        """Cells currently treated as persistent sources. For diagnostics."""
+        return [c for c in self._cells.values() if c.is_known_source]
+
+    @property
+    def tracked_cells(self) -> int:
+        """How many cells carry any history at all."""
+        return len(self._cells)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialise for the config entry's store."""
+        # Tuple keys are not JSON-serialisable; "row:col" round-trips cleanly.
+        return {
+            f"{key[0]}:{key[1]}": cell.daily_peak_frp
+            for key, cell in self._cells.items()
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any] | None) -> PersistentSources:
+        """Restore from the store, skipping anything that does not parse.
+
+        A malformed store is not worth failing a restart over — the worst case
+        is that the history restarts, which costs time and nothing else.
+        """
+        cells: dict[tuple[int, int], CellHistory] = {}
+        for key, value in (raw or {}).items():
+            try:
+                row, col = str(key).split(":")
+                cell_key = (int(row), int(col))
+                daily = {str(k): float(v) for k, v in (value or {}).items()}
+            except (ValueError, AttributeError, TypeError):
+                continue
+            cells[cell_key] = CellHistory(daily_peak_frp=daily)
+        return cls(cells)
 
 
 class FirmsClient:

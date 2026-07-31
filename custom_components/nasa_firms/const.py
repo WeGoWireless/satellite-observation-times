@@ -11,6 +11,7 @@ CONF_MIN_CONFIDENCE = "min_confidence"
 CONF_MIN_FRP = "min_frp"
 CONF_IGNORE_ZONES = "ignore_zones"
 CONF_WIND_FIRES = "wind_fires"
+CONF_AUTO_IGNORE = "auto_ignore"
 
 # A zone is only ever meant to cover a known heat source and its immediate
 # surroundings — a plant, a flare stack, a landfill. Wide enough and it starts
@@ -29,6 +30,20 @@ DEFAULT_RADIUS_M = 100_000
 MAX_RADIUS_M = 500_000
 DEFAULT_MIN_CONFIDENCE = "any"
 DEFAULT_MIN_FRP = 0.0
+
+# Off by default, deliberately. The detection itself is safe — calibrated
+# against 39,397 real detections across seven regions without suppressing a
+# single one at or above 50 MW — but it needs 60 days of history before it
+# does anything at all. A filter that stays dormant for two months and then
+# starts hiding fire data on its own is the wrong thing to hand someone who
+# never asked for it, and it matches the ignore zones, which also start empty.
+DEFAULT_AUTO_IGNORE = False
+
+# How long the per-cell history is kept in the store, and how the file is
+# named. One store per entry: two entries watch different areas, and a shared
+# file would make removing one of them clear the other's history.
+SOURCES_STORAGE_VERSION = 1
+SOURCES_STORAGE_KEY = f"{DOMAIN}.sources"
 
 # How many of the nearest fires get a wind reading each cycle. Configurable
 # because it changes the number of met.no requests, exactly like the satellite

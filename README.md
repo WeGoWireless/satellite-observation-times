@@ -14,7 +14,7 @@ and fixes what that approach structurally can't:
 | FIRMS attributes (confidence, FRP, brightness, time, satellite) | dropped | preserved per fire |
 | Multiple satellites | duplicate markers | deduplicated into one fire per ~1 km cluster |
 | Filtering (min confidence / min FRP) | impossible | config option |
-| Known heat sources (factories, flares) | always alarm | ignore zones |
+| Known heat sources (factories, flares) | always alarm | ignore zones, plus learned sources |
 | Area definition | hand-computed BBOX (`cos(radians(lat))` footgun) | pick location + radius on a map |
 | MAP_KEY | visible in the entry title | stored in config data, never displayed |
 | Polling | every 5 min | every 15 min, matching NASA's refresh cadence |
@@ -80,8 +80,9 @@ the `cluster` option the recommended card below depends on.
    [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbangboomben%2Fha-nasa-firms%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fnasa_firms%2Ffire_within_distance.yaml)
 
 Satellites, detection window (24 h / 7 days), minimum confidence, minimum fire
-radiative power and [ignore zones](#ignore-zones) can all be changed later via
-the entry's *Configure* dialog.
+radiative power, [ignore zones](#ignore-zones) and
+[learned heat sources](#learned-heat-sources) can all be changed later via the
+entry's *Configure* dialog.
 
 **The radius tops out at 500 km.** FIRMS returns at most 1000 detections per
 satellite per request, and a large enough area hits that ceiling — at which
@@ -105,11 +106,45 @@ the hotspot sensor so you can see a zone doing its job.
 starting next to your factory is invisible while it burns inside that circle.
 Keep zones tight — they are capped at 20 km for exactly this reason.
 
-There is deliberately **no automatic version**. "Ignore anything detected here
-for many days running" sounds like the obvious feature, and it is the one thing
-this must not do: a fire front burning for a week produces exactly that pattern.
-Suppressing fires on a guess is not a trade this integration makes, so the list
-stays manual and yours.
+## Learned heat sources
+
+Marking every factory by hand only works for the ones you know about. Since
+v0.7.0 the integration can also learn them, under *Configure* → **Satellites and
+filters** → **Hide learned persistent heat sources**. It is **off by default**.
+
+It watches which 1 km spots keep radiating and hides their routine detections.
+Two conditions, and both matter:
+
+- **A spot must appear across 60 calendar days** before it counts as a source.
+  Not "many days running" — *spread over two months*. That distinction is the
+  whole feature: a fire front burning for a week, or a peat fire reflaring over
+  a month, never reaches it. A cement works does.
+- **A detection much brighter than that spot's own normal is always shown.**
+  The threshold is relative to the spot's own history, not a fixed number of
+  megawatts, so it works the same next to a steel works and next to a gas
+  flare. Near Bordeaux a weak source ran at 5–16 MW for three months and a real
+  fire broke out in the very same 1 km cell at 292 MW — that fire shows.
+
+The count appears as `auto_ignored_detections` on the hotspot sensor, and a
+diagnostics download lists every learned source with its span and its baseline,
+so nothing is hidden without a way to see it.
+
+**It does nothing for the first 60 days.** The history starts building the
+moment the integration is installed — whether or not the switch is on — but
+until a spot has two months behind it, there is nothing to act on. Turning this
+on the day you install it and expecting a change is the one way to be
+disappointed by it.
+
+The thresholds are not guesses: they were calibrated against 39,397 real
+detections across seven regions — southern France, the UK moors, the Permian
+Basin, Andalusia, Greece, Bordeaux and Etna — with known industrial sites as
+ground truth. Not one detection at or above 50 MW was suppressed anywhere in
+that sample. Three simpler rules were tried first and all three failed on that
+data; the reasons are recorded in `api.py` so they are not tried again.
+
+A source that shuts down fades out by itself: it stops refreshing its days, its
+span eventually falls back under the threshold, and it is a normal detection
+again.
 
 ## Entities
 
@@ -211,8 +246,14 @@ step with the version you installed:
   exactly this. Regional feeds such as `nsw_rural_fire_service_feed` and
   `qld_bushfire_feed` do cover fire, but only their own corner of the world.
 - FIRMS detects **thermal anomalies**, not wildfires. Factories, flares and
-  landfills show up too. The confidence and FRP filters thin them out, and
-  [ignore zones](#ignore-zones) remove the ones you know about by name.
+  landfills show up too. The confidence and FRP filters thin them out,
+  [ignore zones](#ignore-zones) remove the ones you know about by name, and
+  [learned sources](#learned-heat-sources) find the rest after two months.
+- **Sun glint is already handled by NASA, if you let it.** Reflections off
+  solar farms, glasshouses and metal roofs are a daytime-only artefact, and
+  NASA marks those pixels `low` confidence — in Europe nothing at night is ever
+  marked `low`. Setting minimum confidence to *Nominal or higher* is therefore
+  the reflection filter; the default of *Any* keeps them.
 - A hotspot is the center of a 375 m satellite pixel; expect a few hundred
   meters of positional tolerance.
 - **The wind is a forecast, not a verdict.** It is looked up for the fire's grid

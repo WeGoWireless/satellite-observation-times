@@ -49,10 +49,12 @@
           "window": "Erkennungszeitraum",
           "min_confidence": "Mindest-Konfidenz",
           "min_frp": "Mindest-Feuerstrahlungsleistung (0 = kein Filter)",
-          "wind_fires": "Feuer mit Windmessung"
+          "wind_fires": "Feuer mit Windmessung",
+          "auto_ignore": "Gelernte Dauerwärmequellen ausblenden"
         },
         "data_description": {
-          "wind_fires": "Für wie viele der nächstgelegenen Feuer pro Zyklus der Wind an ihren eigenen Koordinaten abgefragt wird. Jedes Feuer ist eine Anfrage an MET Norway pro Aktualisierung; Feuer jenseits dieser Zahl tragen keine Windattribute."
+          "wind_fires": "Für wie viele der nächstgelegenen Feuer pro Zyklus der Wind an ihren eigenen Koordinaten abgefragt wird. Jedes Feuer ist eine Anfrage an MET Norway pro Aktualisierung; Feuer jenseits dieser Zahl tragen keine Windattribute.",
+          "auto_ignore": "Lernt, welche Stellen Monat für Monat strahlen — Fabriken, Fackeln, Brennöfen — und blendet deren übliche Detektionen aus. Eine Stelle muss über 60 Tage hinweg auftauchen, bevor sie zählt; die ersten zwei Monate passiert also nichts. Eine Detektion, die deutlich heller ist als das übliche Niveau dieser Stelle, wird immer angezeigt — ein echtes Feuer neben einer Fabrik kommt also durch."
         }
       },
       "zones": {
