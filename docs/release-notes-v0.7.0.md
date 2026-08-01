@@ -4,6 +4,9 @@ Text for the GitHub release.
 
 ## Release body
 
+**This integration is now in the HACS default store** — no custom repository
+needed. Search for *NASA FIRMS Wildfire Monitor* in HACS.
+
 FIRMS reports heat, not wildfires. A steel works, a flare stack or a cement
 kiln is detected every single day. Ignore zones have handled the ones you know
 about by name since v0.4.0 — this release learns the rest.

@@ -31,8 +31,8 @@ configured radius around the watched location.*
 
 ## Installation
 
-**HACS** (recommended): HACS → Integrations → ⋮ → *Custom repositories* →
-add `https://github.com/bangboomben/ha-nasa-firms` as *Integration* → install → restart.
+**HACS** (recommended): search for **NASA FIRMS Wildfire Monitor** in HACS →
+install → restart.
 
 **Manual**: copy `custom_components/nasa_firms` into your `config/custom_components/` and restart.
 
