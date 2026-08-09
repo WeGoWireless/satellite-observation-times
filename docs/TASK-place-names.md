@@ -104,7 +104,8 @@ talking to the maintainer.
   coordinate.
 - README: document the attributes and add a "near {place}" notification/card
   recipe; docs/dashboard.md hook-up where it fits.
-- Version bump, release notes.
+- Version bump (this is the headline feature for **v0.8.0** — maintainer
+  decision 2026-08-09, and announced as such in the thread), release notes.
 
 ## Definition of done
 
