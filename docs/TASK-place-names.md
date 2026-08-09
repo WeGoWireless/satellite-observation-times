@@ -103,7 +103,14 @@ talking to the maintainer.
   lookups for both live entries, cache behaviour, and a far-from-anywhere
   coordinate.
 - README: document the attributes and add a "near {place}" notification/card
-  recipe; docs/dashboard.md hook-up where it fits.
+  recipe; docs/dashboard.md hook-up where it fits. The recipe must include a
+  miles variant (`(place_distance_km * 0.621) | round(1)`) and say plainly
+  that HA never unit-converts attributes — the unit lives in the attribute
+  name on purpose. This follows the line set in thread post #34 (v0.5.1
+  episode): geo_location stays km, conversion happens in the user's template.
+  Do not convert the attribute per unit system in the entity layer — a value
+  whose unit changes per instance while the name stays fixed is exactly the
+  confusion of thread posts #20/#32.
 - Version bump (this is the headline feature for **v0.8.0** — maintainer
   decision 2026-08-09, and announced as such in the thread), release notes.
 
