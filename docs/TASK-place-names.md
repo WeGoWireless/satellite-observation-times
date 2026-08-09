@@ -40,13 +40,20 @@ talking to the maintainer.
    An offline dataset has none of these problems and keeps working when a fire
    takes the internet connection down — exactly the moment this integration
    matters.
-2. **City granularity: GeoNames `cities5000`** (places with population ≥ 5 000;
-   maintainer decision 2026-08-09). Measured on the real data: 69 058 places
-   worldwide, ~0.9 MB gzipped in the release, ~5 MB RAM loaded, ~46 ms for a
-   full pure-Python haversine scan on a desktop (a coarse ±1° bounding-box
-   prefilter cuts that to ~9 ms). The reference entry 43.60/3.90 resolves to
-   "Montpellier, 2.3 km" — verified. No numpy, no scipy, no new dependencies:
-   `haversine_km` already lives in `api.py`.
+2. **Granularity: GeoNames `cities1000`** (places with population ≥ 1 000;
+   maintainer decision 2026-08-09 — initially the ≥5 000 tier, revised the same
+   day after coverage tests). Measured on the real data: 147 737 places across
+   230 countries, ~1.8 MB gzipped in the release, ~11 MB RAM loaded, ~96 ms for
+   a full pure-Python haversine scan on a desktop (a coarse ±1° bounding-box
+   prefilter cuts that to ~16 ms). The reference entry 43.60/3.90 resolves to
+   "Montpellier, 2.3 km" — verified. Why this tier: coverage is population-
+   driven and genuinely worldwide, but in classic sparse wildfire country the
+   city tier got coarse — the Australian outback resolved to "Alice Springs,
+   342 km" at ≥5 000 vs "Yulara, 12 km" at ≥1 000, boreal Canada to 240 km vs
+   85 km. The ≥500 village tier adds almost nothing beyond that (73 vs 85 km in
+   the Canada probe, elsewhere identical) for double the size — do not step up
+   further. No numpy, no scipy, no new dependencies: `haversine_km` already
+   lives in `api.py`.
 3. **Expose facts, never prose.** Ship the name and the distance as attributes;
    users compose "12 km NE of Montpellier" themselves (bearing recipes already
    exist in the docs). A remote fire whose nearest listed place is 200 km away
@@ -62,11 +69,11 @@ talking to the maintainer.
    ever revisited, that is its own task with its own migration story.
 6. **No configuration switch.** Attributes stay non-configurable (maintainer
    decision 2026-07-28, recorded in `CLAUDE.md`). The feature is always on;
-   5 MB RAM is the cost of doing business.
+   ~11 MB RAM is the cost of doing business.
 
 ## Dataset and licensing
 
-- Source: `https://download.geonames.org/export/dump/cities5000.zip`, licence
+- Source: `https://download.geonames.org/export/dump/cities1000.zip`, licence
   **CC BY 4.0** — same licence family as the met.no wind data, so the credit
   mechanism already exists (`const.ATTRIBUTION_WEATHER`, dynamic `attribution`
   property in `sensor.py`).
@@ -89,7 +96,7 @@ talking to the maintainer.
   cache keyed by rounded coordinates (~3 decimals). No persistence needed —
   lookups are cheap and deterministic, a restart just recomputes.
 - Coordinator wiring: the initial load and the per-cycle lookups run via
-  `async_add_executor_job` (the load parses ~69k rows; a burst of new clusters
+  `async_add_executor_job` (the load parses ~148k rows; a burst of new clusters
   can mean dozens of scans). Lookups only for clusters that don't have a cached
   result yet — the id carry-forward means an unchanged fire never rescans.
 - Attributes on each fire entity: `place_name`, `place_distance_km` (fire →
