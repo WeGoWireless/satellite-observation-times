@@ -106,9 +106,10 @@ talking to the maintainer.
   through `nearest_entity_id`, same reasoning as the v0.2.0 decision not to
   mirror `latitude`/`longitude` there.
 - Smoke-test cases in the existing style (`tests/smoke_test.py` loads `api.py`
-  directly, no pytest): index load from the real bundled file, known-answer
-  lookups for both live entries, cache behaviour, and a far-from-anywhere
-  coordinate.
+  directly, no pytest): index load from the real bundled file, a known-answer
+  lookup for the reference entry (43.60/3.90 → Montpellier, ~2.3 km), cache
+  behaviour, and a far-from-anywhere coordinate that legitimately returns a
+  distant place (the outback probe, -25.34/131.03 → Yulara, ~12 km).
 - README: document the attributes and add a "near {place}" notification/card
   recipe; docs/dashboard.md hook-up where it fits. The recipe must include a
   miles variant (`(place_distance_km * 0.621) | round(1)`) and say plainly
