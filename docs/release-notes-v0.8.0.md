@@ -36,7 +36,7 @@ Lookups happen locally against that file.
 - No API key, no account, no rate limit, nothing to configure.
 - It still works when a fire has taken your internet connection down — which
   is the moment it matters most.
-- About 15 MB of memory, once, shared by all your config entries.
+- About 6 MB of memory, once, shared by all your config entries.
 
 ### What it will and will not tell you
 
@@ -49,7 +49,7 @@ tells the two apart, and a large number there means remote, not wrong.
 
 1. Nothing to configure and nothing to turn on — the attributes are simply
    there after the update.
-2. The download is ~2 MB larger, and Home Assistant uses ~15 MB more memory
+2. The download is ~2 MB larger, and Home Assistant uses ~6 MB more memory
    once the dataset is first read (shared across entries, not per entry).
 3. `place_distance_km` stays kilometres on every instance. Home Assistant
    converts sensor *states* to your unit system but never attributes, so the

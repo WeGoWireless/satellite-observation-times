@@ -77,7 +77,7 @@ ATTRIBUTION_PLACES = (
 )
 
 # Where the shared place index lives in hass.data. One per Home Assistant, not
-# per entry: it is ~15 MB of place names (measured, 170,607 places) and two
+# per entry: it is ~6 MB of place names (measured, 170,607 places) and two
 # entries want the same table.
 DATA_PLACES = "places"
 

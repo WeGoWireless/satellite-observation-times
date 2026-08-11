@@ -47,10 +47,17 @@ talking to the maintainer.
    **As built (2026-08-09), superseding the planning estimates below:** the
    `cities1000` export also carries administrative seats, so it holds **170 607
    places across 246 countries**, not the 147 737 estimated from a filtered
-   `cities500`. Shipped file **2.19 MB** gzipped; **15.1 MB** RAM once loaded
-   (float64 coordinates plus pooled country codes); **867 ms** to load on a
-   desktop; lookups 0.2–3.3 ms cold in populated areas, 32 ms worst case in
-   empty ocean, ~1 µs cached.
+   `cities500`. Shipped file **2.19 MB** gzipped; **5.6 MB** RAM once loaded;
+   **1.2 s** to load on a desktop, 1.6 s on the maintainer's HA box; lookups
+   0.1–2.4 ms cold in populated areas, ~30 ms worst case in empty ocean,
+   ~1 µs cached.
+
+   RAM was 15.1 MB in the first cut, where names were 170k separate `str`
+   objects — Python spends ~50 bytes of object header on each, so 1.7 MB of
+   text cost 10.8 MB to hold. Names now live as one UTF-8 blob plus an offset
+   array and country codes as indices into a ~250-entry table, which is the
+   same technique the coordinate arrays already used. Answers and lookup
+   times are unchanged; only the load is ~0.3 s slower.
 
    Planning estimates were: 147 737 places, ~1.8 MB, ~11 MB RAM, ~96 ms per
    scan. The reference entry 43.60/3.90 resolves to "Montpellier, 2.3 km" —
@@ -76,8 +83,12 @@ talking to the maintainer.
    cluster-id carry-forward semantics — explicitly out of scope. If naming is
    ever revisited, that is its own task with its own migration story.
 6. **No configuration switch.** Attributes stay non-configurable (maintainer
-   decision 2026-07-28, recorded in `CLAUDE.md`). The feature is always on;
-   ~11 MB RAM is the cost of doing business.
+   decision 2026-07-28, recorded in `CLAUDE.md`). The feature is always on.
+   A "use less memory" switch was raised and rejected on 2026-08-11: the
+   dataset ships either way, so a toggle could only avoid *loading* it, and
+   an optional attribute forces an "if you enabled this" caveat onto every
+   documented template. Making it cheap beat making it optional — see the
+   memory note under constraint 2.
 
 ## Dataset and licensing
 

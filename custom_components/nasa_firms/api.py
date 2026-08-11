@@ -1074,8 +1074,21 @@ class PlaceIndex:
         self._path = Path(path) if path is not None else PLACES_FILE
         self._lats = array("d")
         self._lons = array("d")
-        self._names: list[str] = []
-        self._countries: list[str] = []
+        # Names live as one UTF-8 blob plus a start offset per place, rather
+        # than 170k str objects. Python spends ~50 bytes of header on every
+        # string it holds, so "Montpellier" — eleven bytes of text — costs
+        # sixty in a list; across the dataset that is 9 MB of bookkeeping
+        # against 1.7 MB of actual names. The coordinates above already avoid
+        # exactly this by living in an array rather than a list of floats;
+        # this is the same trick applied to the text. A str is built only for
+        # the handful of places actually asked about, in _place_at().
+        self._names = b""
+        self._offsets = array("I", [0])
+        # Same idea, one level up: there are ~250 distinct country codes over
+        # ~170k places, so each place stores an index into a table instead of
+        # a pointer to its own string.
+        self._country_table: list[str] = []
+        self._country_of = array("H")
         self._loaded = False
         # Latched so an unreadable file is reported once, not every cycle.
         self._failed = False
@@ -1120,12 +1133,11 @@ class PlaceIndex:
         try:
             with gzip.open(self._path, "rt", encoding="utf-8", newline="") as handle:
                 lats, lons = array("d"), array("d")
-                names: list[str] = []
-                countries: list[str] = []
-                # ~250 distinct country codes over ~170k rows, and csv hands
-                # back a fresh string for every one of them. Pooling is worth
-                # several megabytes for two lines.
-                pool: dict[str, str] = {}
+                blob = bytearray()
+                offsets = array("I", [0])
+                country_table: list[str] = []
+                country_index: dict[str, int] = {}
+                country_of = array("H")
                 for row in csv.reader(handle):
                     if len(row) < 4 or not row[2]:
                         continue
@@ -1135,14 +1147,28 @@ class PlaceIndex:
                         continue
                     lats.append(latitude)
                     lons.append(longitude)
-                    names.append(row[2])
-                    countries.append(pool.setdefault(row[3], row[3]))
+                    blob += row[2].encode("utf-8")
+                    offsets.append(len(blob))
+                    slot = country_index.get(row[3])
+                    if slot is None:
+                        slot = country_index[row[3]] = len(country_table)
+                        country_table.append(row[3])
+                    country_of.append(slot)
         # Every way this file can be broken has to land here. An interrupted
         # download leaves a truncated gzip stream (zlib.error, EOFError) or
-        # bytes that are not UTF-8 — and an exception escaping this method
-        # would fail the whole update cycle and take the fire entities down
-        # with it, which is the one outcome a missing place name must not have.
-        except (OSError, EOFError, csv.Error, UnicodeDecodeError, zlib.error) as err:
+        # bytes that are not UTF-8; a file full of junk could overrun the
+        # offset and country arrays (OverflowError). An exception escaping
+        # this method would fail the whole update cycle and take the fire
+        # entities down with it, which is the one outcome a missing place
+        # name must not have.
+        except (
+            OSError,
+            EOFError,
+            csv.Error,
+            UnicodeDecodeError,
+            zlib.error,
+            OverflowError,
+        ) as err:
             self._failed = True
             raise PlaceDataError(
                 f"place dataset unreadable ({self._path}): {err}"
@@ -1150,16 +1176,24 @@ class PlaceIndex:
 
         # The generator writes latitude order and the search bisects on it.
         # Verified rather than trusted: an unsorted file would not fail, it
-        # would confidently return the wrong neighbour.
+        # would confidently return the wrong neighbour. Reordering has to
+        # carry the blob along, which is why the names are cut out and
+        # re-concatenated rather than simply reindexed.
         if any(lats[index] > lats[index + 1] for index in range(len(lats) - 1)):
             order = sorted(range(len(lats)), key=lats.__getitem__)
             lats = array("d", (lats[i] for i in order))
             lons = array("d", (lons[i] for i in order))
-            names = [names[i] for i in order]
-            countries = [countries[i] for i in order]
+            ordered_blob = bytearray()
+            ordered_offsets = array("I", [0])
+            for i in order:
+                ordered_blob += blob[offsets[i] : offsets[i + 1]]
+                ordered_offsets.append(len(ordered_blob))
+            blob, offsets = ordered_blob, ordered_offsets
+            country_of = array("H", (country_of[i] for i in order))
 
         self._lats, self._lons = lats, lons
-        self._names, self._countries = names, countries
+        self._names, self._offsets = bytes(blob), offsets
+        self._country_table, self._country_of = country_table, country_of
         self._loaded = True
 
     def nearest(self, latitude: float, longitude: float) -> PlaceMatch | None:
@@ -1205,8 +1239,19 @@ class PlaceIndex:
                 break
         if best_index < 0 or best_km is None:
             return None
+        return self._place_at(best_index, best_km)
+
+    def _place_at(self, index: int, distance_km: float) -> PlaceMatch:
+        """Build the answer for one place.
+
+        The single point where a name turns back into a str: cut its bytes out
+        of the blob and decode them. That happens for the handful of places
+        actually asked about, not for the 170k sitting in memory.
+        """
         return PlaceMatch(
-            name=self._names[best_index],
-            country=self._countries[best_index],
-            distance_km=round(best_km, 1),
+            name=self._names[self._offsets[index] : self._offsets[index + 1]].decode(
+                "utf-8"
+            ),
+            country=self._country_table[self._country_of[index]],
+            distance_km=round(distance_km, 1),
         )

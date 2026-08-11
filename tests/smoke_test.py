@@ -746,6 +746,37 @@ def test_place_index() -> None:
     check("reference entry knows its country", match is not None and match.country == "FR")
     check("reference distance ~2.3 km", match is not None and near(match.distance_km, 2.3, 0.3), f"got {match}")
 
+    # Names are held as one UTF-8 blob plus offsets, so the one thing that can
+    # go wrong is slicing a multi-byte character in half. Thérmi carries an
+    # accent, and the structural checks below cover the rest of the table.
+    accented = index.nearest(40.54, 23.01)
+    check(
+        "a non-ASCII name survives the blob round-trip",
+        accented is not None and accented.name == "Thérmi",
+        f"got {accented}",
+    )
+    check(
+        "offsets end exactly at the end of the blob",
+        index._offsets[-1] == len(index._names),
+        f"{index._offsets[-1]} vs {len(index._names)}",
+    )
+    check(
+        "there is one offset per place, plus the closing one",
+        len(index._offsets) == len(index) + 1,
+        f"{len(index._offsets)} vs {len(index) + 1}",
+    )
+    decoded = 0
+    for i in range(0, len(index), 331):  # a spread-out sample, not a hot loop
+        try:
+            name = index._place_at(i, 0.0).name
+        except UnicodeDecodeError:
+            check("every sampled name decodes", False, f"place {i} broke")
+            break
+        if name:
+            decoded += 1
+    else:
+        check("every sampled name decodes and is non-empty", decoded > 400, f"got {decoded}")
+
     # Sparse country: the answer is legitimately far away and must say so
     # rather than being hidden or capped.
     outback = index.nearest(-25.34, 131.03)
@@ -765,16 +796,17 @@ def test_place_index() -> None:
         ("north pole", 89.9, 0.0),
         ("southern France", 43.60, 3.90),
     ):
-        best_name, best_km = None, 1e18
+        best_index, best_km = -1, 1e18
         for i in range(len(index._lats)):
             km = api.haversine_km(lat, lon, index._lats[i], index._lons[i])
             if km < best_km:
-                best_name, best_km = index._names[i], km
+                best_index, best_km = i, km
+        expected = index._place_at(best_index, best_km)
         got = index.nearest(lat, lon)
         check(
             f"banded search matches a full scan at the {label}",
-            got is not None and got.name == best_name,
-            f"got {got}, full scan says {best_name} at {best_km:.1f} km",
+            got is not None and got.name == expected.name,
+            f"got {got}, full scan says {expected.name} at {best_km:.1f} km",
         )
 
     # Repeat lookups come out of the cache, and the cache is bounded.
