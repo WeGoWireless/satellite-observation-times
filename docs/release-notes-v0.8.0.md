@@ -15,7 +15,8 @@ Every fire entity gains two attributes:
 
 So a notification can read *"fire 18 km away, near Saint-Martin-de-Londres"*
 instead of a pair of coordinates.
-[The recipes](docs/templates.md#name-the-place-a-fire-is-near) cover the
+[The recipes](https://github.com/bangboomben/ha-nasa-firms/blob/v0.8.0/docs/templates.md#name-the-place-a-fire-is-near)
+cover the
 plain version, the miles version, and how to say "in open country" when the
 nearest town is genuinely far off.
 
