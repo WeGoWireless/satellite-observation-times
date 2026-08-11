@@ -790,6 +790,46 @@ def test_place_index() -> None:
     )
 
 
+def test_place_index_concurrent_load() -> None:
+    """Two config entries load the shared index at the same moment.
+
+    This is not hypothetical: entries set up concurrently, each reaches the
+    index from its own executor thread, and the very first cycle of both runs
+    before anything is loaded. An earlier version marked the index as failed
+    for the duration of the load, so whichever entry arrived second saw a
+    permanently-failed index and went the whole session without place names —
+    which is exactly how it behaved on a live two-entry instance.
+    """
+    print("place names: concurrent load")
+    import threading
+
+    index = api.PlaceIndex()
+    start = threading.Barrier(4)
+    results: list[object] = [None] * 4
+    errors: list[BaseException] = []
+
+    def worker(slot: int) -> None:
+        try:
+            start.wait(timeout=30)
+            results[slot] = index.nearest(43.60, 3.90)
+        except BaseException as err:  # noqa: BLE001 - the test is the assertion
+            errors.append(err)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+
+    check("no thread raised", not errors, f"got {errors[:1]}")
+    check("the index ends up loaded", index.loaded)
+    check(
+        "every caller gets the answer, not just the first",
+        all(r is not None and r.name == "Montpellier" for r in results),
+        f"got {results}",
+    )
+
+
 def test_place_index_failures() -> None:
     """A broken dataset costs place names and nothing else."""
     print("place names: failure modes")
@@ -867,6 +907,7 @@ def main() -> int:
     test_id_carry_over()
     test_parse_wind()
     test_place_index()
+    test_place_index_concurrent_load()
     test_place_index_failures()
     asyncio.run(test_firms_client_failures())
     asyncio.run(test_client_request())

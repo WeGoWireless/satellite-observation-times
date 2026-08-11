@@ -12,6 +12,7 @@ import csv
 import gzip
 import json
 import math
+import threading
 import zlib
 from array import array
 from bisect import bisect_left, bisect_right
@@ -1079,6 +1080,11 @@ class PlaceIndex:
         # Latched so an unreadable file is reported once, not every cycle.
         self._failed = False
         self._cache: OrderedDict[tuple[float, float], PlaceMatch | None] = OrderedDict()
+        # One index serves every config entry, and entries set up
+        # concurrently — so two executor threads can arrive here at the same
+        # moment, on the very first cycle, before anything is loaded. The lock
+        # covers both the load and the cache bookkeeping.
+        self._lock = threading.Lock()
 
     def __len__(self) -> int:
         return len(self._lats)
@@ -1094,10 +1100,23 @@ class PlaceIndex:
         Raises PlaceDataError once if the file is unreadable, then stays
         silent: a broken install should cost the place names, not a warning
         every fifteen minutes for as long as Home Assistant runs.
+
+        Serialised, because config entries set up concurrently and each one
+        reaches this from its own executor thread. Without the lock the second
+        thread finds the index mid-load — neither loaded nor failed — and the
+        entry that got there second spends the rest of the session with no
+        place names at all.
         """
         if self._loaded or self._failed:
             return
-        self._failed = True
+        with self._lock:
+            self._load_locked()
+
+    def _load_locked(self) -> None:
+        # Another thread may have finished the whole job — or failed at it —
+        # while this one waited for the lock.
+        if self._loaded or self._failed:
+            return
         try:
             with gzip.open(self._path, "rt", encoding="utf-8", newline="") as handle:
                 lats, lons = array("d"), array("d")
@@ -1124,6 +1143,7 @@ class PlaceIndex:
         # would fail the whole update cycle and take the fire entities down
         # with it, which is the one outcome a missing place name must not have.
         except (OSError, EOFError, csv.Error, UnicodeDecodeError, zlib.error) as err:
+            self._failed = True
             raise PlaceDataError(
                 f"place dataset unreadable ({self._path}): {err}"
             ) from err
@@ -1141,22 +1161,30 @@ class PlaceIndex:
         self._lats, self._lons = lats, lons
         self._names, self._countries = names, countries
         self._loaded = True
-        self._failed = False
 
     def nearest(self, latitude: float, longitude: float) -> PlaceMatch | None:
-        """The nearest populated place, or None if the dataset holds none."""
+        """The nearest populated place, or None if the dataset holds none.
+
+        The lock is taken around the cache bookkeeping but deliberately not
+        held across the search: two entries looking up at once may then do the
+        same work twice, which costs a few milliseconds, whereas holding it
+        would make every entry queue behind every other one.
+        """
         key = (
             round(latitude, PLACE_COORD_DECIMALS),
             round(longitude, PLACE_COORD_DECIMALS),
         )
-        cached = self._cache.get(key, _MISSING)
-        if cached is not _MISSING:
-            self._cache.move_to_end(key)
-            return cached  # type: ignore[return-value]
+        with self._lock:
+            cached = self._cache.get(key, _MISSING)
+            if cached is not _MISSING:
+                self._cache.move_to_end(key)
+                return cached  # type: ignore[return-value]
         match = self._search(latitude, longitude)
-        self._cache[key] = match
-        if len(self._cache) > PLACE_CACHE_SIZE:
-            self._cache.popitem(last=False)
+        with self._lock:
+            self._cache[key] = match
+            self._cache.move_to_end(key)
+            while len(self._cache) > PLACE_CACHE_SIZE:
+                self._cache.popitem(last=False)
         return match
 
     def _search(self, latitude: float, longitude: float) -> PlaceMatch | None:
