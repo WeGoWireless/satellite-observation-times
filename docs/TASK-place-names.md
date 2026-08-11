@@ -135,9 +135,9 @@ talking to the maintainer.
 
 ## Working notes
 
-- Deploy path: `tar` over SSH to
-  `root@192.168.178.81:/homeassistant/custom_components/`, then restart HA. A
-  config-entry reload is not enough for code changes.
+- Deploy path: `tar` over SSH to the maintainer's own HA box, into
+  `/homeassistant/custom_components/`, then restart HA. A config-entry reload
+  is not enough for code changes. (Ask the maintainer for the host.)
 - The southern-France entry (43.60/3.90) is the only reference for tests and
   examples; the Thermi entry is abandoned.
 - Feasibility numbers above were measured 2026-08-09 with a throwaway probe

@@ -85,8 +85,9 @@ user-provided key) is then the maintainer's decision, not yours to assume.
 
 ## Working notes
 
-- Deploy path: `tar` over SSH to `root@192.168.178.81:/homeassistant/custom_components/`,
-  then restart HA. A config-entry reload is not enough for code changes.
+- Deploy path: `tar` over SSH to the maintainer's own HA box, into
+  `/homeassistant/custom_components/`, then restart HA. A config-entry reload
+  is not enough for code changes. (Ask the maintainer for the host.)
 - Two config entries exist on that instance for testing: Thermi (40.54/23.01) and
   a southern-France stress-test entry (43.60/3.90, usually the busier one).
 - The maintainer is not a developer by trade. Pause at checkpoints, explain
