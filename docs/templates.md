@@ -35,6 +35,54 @@ Fire {{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
 {{ state_attr(s, 'direction') }}
 ```
 
+## Name the place a fire is near
+
+Every fire entity carries the nearest populated place, resolved locally against
+a dataset shipped with the integration — no geocoding service, no key, and it
+works with the internet down.
+
+| Attribute | Meaning |
+|---|---|
+| `place_name` | Name of the nearest populated place, in its own language (`Thérmi`, `Montpellier`) |
+| `place_distance_km` | Distance from **the fire to that place**, always in kilometres |
+
+Read together with the fire's distance from you, that turns coordinates into a
+sentence someone can act on:
+
+```jinja
+{% set e = state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'nearest_entity_id') %}
+Fire {{ states(e) | round(1) }} km away, near {{ state_attr(e, 'place_name') }}
+({{ state_attr(e, 'place_distance_km') }} km from it)
+```
+
+**In miles.** `place_distance_km` is an attribute, and Home Assistant only
+converts sensor *states* to your unit system — never attributes. The unit is
+therefore fixed in the name, so it cannot quietly mean something different on
+your instance than in this example. Convert where you print it:
+
+```jinja
+{% set e = state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'nearest_entity_id') %}
+near {{ state_attr(e, 'place_name') }}
+({{ (state_attr(e, 'place_distance_km') * 0.621) | round(1) }} miles from it)
+```
+
+The same applies to a fire entity's own state, which is kilometres everywhere;
+the nearest-hotspot **sensor** does follow your unit system, which is why the
+examples on this page read its `unit_of_measurement` instead of printing a unit.
+
+**What "near" means here.** The dataset lists populated places from roughly a
+thousand inhabitants upwards, so `place_name` is the nearest *town*, never a
+street address. Around people that is usually a few kilometres; in genuinely
+empty country it can be a hundred or more, and `place_distance_km` is what
+tells you which of the two you are looking at. If you only want the name when
+it is actually close by:
+
+```jinja
+{% set e = state_attr('sensor.firms_43_60_3_90_nearest_hotspot', 'nearest_entity_id') %}
+{% set km = state_attr(e, 'place_distance_km') %}
+{{ 'near ' ~ state_attr(e, 'place_name') if km is not none and km <= 25 else 'in open country' }}
+```
+
 ## Wind at the fire
 
 The same sensor carries the wind **at the nearest fire's own coordinates**, not

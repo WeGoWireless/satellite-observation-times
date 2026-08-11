@@ -100,6 +100,18 @@ async def async_get_config_entry_diagnostics(
                 data.nearest_wind.time if data.nearest_wind else None
             ),
         },
+        # The place *names* are deliberately absent. "Montpellier" identifies
+        # the monitored area as surely as the coordinates this file redacts,
+        # and the questions a bug report raises — did the dataset load, did it
+        # resolve anything — are answered by the shape alone.
+        "places": {
+            "dataset_loaded": coordinator.places.loaded,
+            "dataset_size": len(coordinator.places),
+            "resolved": len(data.places),
+            # True means the bundled file is missing or corrupt: a broken
+            # install rather than an outage, since nothing here is fetched.
+            "failing": coordinator.places_failing,
+        },
         # No ids and no coordinates: a cluster id is its rounded position.
         "fires": [
             {

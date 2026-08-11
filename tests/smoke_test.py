@@ -725,6 +725,135 @@ async def test_client_failures() -> None:
     )
 
 
+def test_place_index() -> None:
+    """The bundled place dataset, and the banded search over it."""
+    print("place names")
+    index = api.PlaceIndex()
+    index.load()
+    check("dataset loads", index.loaded)
+    check("dataset holds six figures of places", len(index) > 100_000, f"got {len(index)}")
+
+    # Sorted by latitude is not decoration: the search bisects on it.
+    lats = index._lats
+    check(
+        "dataset is sorted by latitude",
+        all(lats[i] <= lats[i + 1] for i in range(0, len(lats) - 1, 97)),
+    )
+
+    # The reference entry. Montpellier sits ~2.3 km from 43.60/3.90.
+    match = index.nearest(43.60, 3.90)
+    check("reference entry resolves to Montpellier", match is not None and match.name == "Montpellier", f"got {match}")
+    check("reference entry knows its country", match is not None and match.country == "FR")
+    check("reference distance ~2.3 km", match is not None and near(match.distance_km, 2.3, 0.3), f"got {match}")
+
+    # Sparse country: the answer is legitimately far away and must say so
+    # rather than being hidden or capped.
+    outback = index.nearest(-25.34, 131.03)
+    check("outback resolves to Yulara", outback is not None and outback.name == "Yulara", f"got {outback}")
+    check("outback distance is ~12 km", outback is not None and near(outback.distance_km, 11.8, 1.0), f"got {outback}")
+
+    # Empty ocean: every band expands and the last one spans the globe, so
+    # there is always an answer, however remote.
+    pacific = index.nearest(0.0, -140.0)
+    check("empty ocean still resolves", pacific is not None, f"got {pacific}")
+    check("empty ocean is honestly far", pacific is not None and pacific.distance_km > 500, f"got {pacific}")
+
+    # The band search must agree with brute force, including where the naive
+    # implementations break: across the antimeridian and at the pole.
+    for label, lat, lon in (
+        ("antimeridian", -16.5, 179.9),
+        ("north pole", 89.9, 0.0),
+        ("southern France", 43.60, 3.90),
+    ):
+        best_name, best_km = None, 1e18
+        for i in range(len(index._lats)):
+            km = api.haversine_km(lat, lon, index._lats[i], index._lons[i])
+            if km < best_km:
+                best_name, best_km = index._names[i], km
+        got = index.nearest(lat, lon)
+        check(
+            f"banded search matches a full scan at the {label}",
+            got is not None and got.name == best_name,
+            f"got {got}, full scan says {best_name} at {best_km:.1f} km",
+        )
+
+    # Repeat lookups come out of the cache, and the cache is bounded.
+    before = len(index._cache)
+    index.nearest(43.60, 3.90)
+    check("a repeat lookup adds no cache entry", len(index._cache) == before)
+    for i in range(api.PLACE_CACHE_SIZE + 50):
+        index.nearest(10.0 + i * 0.01, 10.0)
+    check(
+        "cache stays bounded",
+        len(index._cache) <= api.PLACE_CACHE_SIZE,
+        f"got {len(index._cache)}",
+    )
+
+
+def test_place_index_failures() -> None:
+    """A broken dataset costs place names and nothing else."""
+    print("place names: failure modes")
+    missing = api.PlaceIndex(Path(__file__).parent / "no-such-file.csv.gz")
+    try:
+        missing.load()
+        check("a missing dataset raises PlaceDataError", False, "no exception")
+    except api.PlaceDataError as err:
+        check("a missing dataset raises PlaceDataError", True)
+        check("the error names the file", "no-such-file" in str(err), f"got {err!r}")
+
+    # Latched: the second call is silent, so a broken install does not warn
+    # every fifteen minutes for as long as Home Assistant runs.
+    try:
+        missing.load()
+        check("a second load stays silent", True)
+    except api.PlaceDataError:
+        check("a second load stays silent", False, "raised again")
+    check("a failed index reports itself unloaded", not missing.loaded)
+    check("a failed index resolves nothing", missing.nearest(43.6, 3.9) is None)
+
+    # An interrupted HACS download is the realistic corruption, and it must
+    # not escape as something the update cycle would treat as a fire failure.
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        broken = Path(tmp) / "places.csv.gz"
+        broken.write_bytes(b"\x1f\x8b\x08\x00 this is not a gzip stream at all")
+        index = api.PlaceIndex(broken)
+        try:
+            index.load()
+            check("a corrupt dataset raises PlaceDataError", False, "no exception")
+        except api.PlaceDataError:
+            check("a corrupt dataset raises PlaceDataError", True)
+        except Exception as err:  # noqa: BLE001 - the test is the assertion
+            check(
+                "a corrupt dataset raises PlaceDataError",
+                False,
+                f"leaked {type(err).__name__}",
+            )
+        check("a corrupt dataset resolves nothing", index.nearest(43.6, 3.9) is None)
+
+        # Truncated mid-stream: valid header, cut body.
+        good = api.PLACES_FILE.read_bytes()
+        half = Path(tmp) / "half.csv.gz"
+        half.write_bytes(good[: len(good) // 2])
+        try:
+            api.PlaceIndex(half).load()
+            check("a truncated dataset raises PlaceDataError", False, "no exception")
+        except api.PlaceDataError:
+            check("a truncated dataset raises PlaceDataError", True)
+        except Exception as err:  # noqa: BLE001 - the test is the assertion
+            check(
+                "a truncated dataset raises PlaceDataError",
+                False,
+                f"leaked {type(err).__name__}",
+            )
+
+    check(
+        "PlaceDataError is not a FirmsError",
+        not issubclass(api.PlaceDataError, api.FirmsError),
+    )
+
+
 def main() -> int:
     """Run everything and report."""
     test_geometry()
@@ -737,6 +866,8 @@ def main() -> int:
     test_clustering()
     test_id_carry_over()
     test_parse_wind()
+    test_place_index()
+    test_place_index_failures()
     asyncio.run(test_firms_client_failures())
     asyncio.run(test_client_request())
     asyncio.run(test_client_caching())

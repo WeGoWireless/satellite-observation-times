@@ -9,10 +9,11 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
-from .api import FirmsClient, MetNoClient
+from .api import FirmsClient, MetNoClient, PlaceIndex
 from .const import (
     CONF_MAP_KEY,
     CONF_REGION,
+    DATA_PLACES,
     DOMAIN,
     SOURCES_STORAGE_KEY,
     SOURCES_STORAGE_VERSION,
@@ -58,6 +59,18 @@ def _async_repair_region(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> No
     )
 
 
+@callback
+def _async_place_index(hass: HomeAssistant) -> PlaceIndex:
+    """The place-name index, created once and shared by every entry.
+
+    The table is the largest thing this integration holds in memory, and it is
+    the same table whatever an entry is watching — one per Home Assistant, not
+    one per entry. Nothing is read from disk here; the index loads itself on
+    first use, inside an executor.
+    """
+    return hass.data.setdefault(DOMAIN, {}).setdefault(DATA_PLACES, PlaceIndex())
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) -> bool:
     """Set up NASA FIRMS from a config entry."""
     _async_repair_region(hass, entry)
@@ -67,7 +80,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) ->
         session,
         USER_AGENT.format(version=async_get_loaded_integration(hass, DOMAIN).version),
     )
-    coordinator = FirmsCoordinator(hass, entry, client, weather)
+    coordinator = FirmsCoordinator(
+        hass, entry, client, weather, _async_place_index(hass)
+    )
     # Before the first refresh, not after: that refresh already filters, and
     # without the learned history it would republish every known factory for
     # one cycle. A burst of fires that are not fires, right after a restart,

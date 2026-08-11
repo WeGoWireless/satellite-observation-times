@@ -22,6 +22,9 @@ from .api import (
     FirmsCluster,
     MetNoClient,
     PersistentSources,
+    PlaceDataError,
+    PlaceIndex,
+    PlaceMatch,
     WeatherError,
     WindObservation,
     bbox_around,
@@ -83,6 +86,10 @@ class FirmsData:
     # nearest fires only. A fire ranked beyond that budget is simply absent —
     # not None — and so is any fire whose lookup failed.
     wind: dict[str, WindObservation] = field(default_factory=dict)
+    # Nearest populated place per fire, keyed by cluster id. Every fire gets
+    # one — the lookup is local and costs nothing per fire after the first —
+    # so absence here means the dataset could not be read, nothing else.
+    places: dict[str, PlaceMatch] = field(default_factory=dict)
 
     @property
     def nearest_wind(self) -> WindObservation | None:
@@ -114,6 +121,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         entry: NasaFirmsConfigEntry,
         client: FirmsClient,
         weather: MetNoClient,
+        places: PlaceIndex,
     ) -> None:
         super().__init__(
             hass,
@@ -124,8 +132,16 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         )
         self.client = client
         self.weather = weather
+        # Shared across entries — see const.DATA_PLACES.
+        self.places = places
         # Latched so a weather outage is reported once, not every 15 minutes.
         self._weather_failing = False
+        # Same latch for the place dataset — but this one never clears. The
+        # dataset can only fail by being missing or corrupt, which is a broken
+        # install rather than a passing outage, and the index itself gives up
+        # permanently after the first failure. Reinstalling and restarting is
+        # the fix, and the restart is what resets this.
+        self._places_failing = False
         # None rather than False, so the first cycle after a restart always
         # syncs the repair issue — otherwise one raised before the restart
         # would outlive the condition that raised it.
@@ -278,6 +294,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # renumber every fire.
         self._previous_clusters = data.clusters
         if data.clusters:
+            data.places = await self._async_places(data.clusters)
             data.wind = await self._async_wind(data.clusters)
         return data
 
@@ -285,6 +302,11 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
     def weather_failing(self) -> bool:
         """Whether the wind lookup is currently backed off. For diagnostics."""
         return self._weather_failing
+
+    @property
+    def places_failing(self) -> bool:
+        """Whether the place dataset could not be read. For diagnostics."""
+        return self._places_failing
 
     @property
     def sources(self) -> PersistentSources:
@@ -328,6 +350,43 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
                 "cap": str(FETCH_COUNT),
             },
         )
+
+    async def _async_places(
+        self, clusters: list[FirmsCluster]
+    ) -> dict[str, PlaceMatch]:
+        """Nearest populated place for every fire, off the event loop.
+
+        One executor hop for the whole cycle rather than one per fire: the
+        first call also parses ~170k rows out of the bundled dataset, and
+        every later one is a dict hit for a fire that has not moved.
+
+        Never raises. A missing or corrupt dataset costs the place names and
+        leaves the fire data untouched, exactly as a weather outage does.
+        """
+        try:
+            return await self.hass.async_add_executor_job(self._lookup_places, clusters)
+        except PlaceDataError as err:
+            if not self._places_failing:
+                self._places_failing = True
+                _LOGGER.warning(
+                    "Place names unavailable, continuing without them: %s", err
+                )
+            return {}
+
+    def _lookup_places(self, clusters: list[FirmsCluster]) -> dict[str, PlaceMatch]:
+        """Blocking half of _async_places. Runs in an executor thread.
+
+        Pure: the flag lives on the event loop side, because the index reports
+        an unreadable file exactly once and answers None quietly ever after —
+        clearing the flag on a later empty cycle would report a broken install
+        as healthy.
+        """
+        found: dict[str, PlaceMatch] = {}
+        for cluster in clusters:
+            match = self.places.nearest(cluster.latitude, cluster.longitude)
+            if match is not None:
+                found[cluster.id] = match
+        return found
 
     async def _async_wind(
         self, clusters: list[FirmsCluster]

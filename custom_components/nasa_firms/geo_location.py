@@ -13,7 +13,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import cardinal, intensity_for_frp, smoke_offset
-from .const import ATTRIBUTION, GEO_SOURCE
+from .const import ATTRIBUTION, ATTRIBUTION_PLACES, GEO_SOURCE
 from .coordinator import FirmsCoordinator, NasaFirmsConfigEntry
 
 
@@ -129,7 +129,6 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
     # used (entity rows, the more-info header) the picture wins outright.
     _attr_icon = "mdi:fire"
     _attr_unit_of_measurement = UnitOfLength.KILOMETERS
-    _attr_attribution = ATTRIBUTION
 
     def __init__(
         self,
@@ -144,6 +143,13 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
         self._untrack = untrack
         self._attr_name = f"Wildfire hotspot {cluster_id}"
         self._update_from_cluster()
+
+    @property
+    def attribution(self) -> str:
+        """Credit GeoNames as well, but only while a place name is showing."""
+        if self.cluster_id in self.coordinator.data.places:
+            return f"{ATTRIBUTION}. {ATTRIBUTION_PLACES}"
+        return ATTRIBUTION
 
     async def async_added_to_hass(self) -> None:
         """Publish our entity_id so the aggregate sensors can point at us."""
@@ -187,6 +193,28 @@ class FirmsFireEntity(CoordinatorEntity[FirmsCoordinator], GeolocationEvent):
             # measured from. See FirmsCoordinator.origin.
             "origin": self.coordinator.origin,
         }
+        # The nearest town to the fire, so a card or a notification can say
+        # "14 km from Montpellier" instead of reading out coordinates. Both
+        # come from a dataset bundled with the integration — no geocoding
+        # service is called, and nothing here needs the internet.
+        #
+        # `place_distance_km` is fire-to-town and has nothing to do with the
+        # entity's own state, which is fire-to-you. The unit is in the name on
+        # purpose: Home Assistant converts sensor *states* to the instance's
+        # unit system but never attributes, so a name like `place_distance`
+        # would silently mean different things on different instances. Miles
+        # are one multiplication away in a template; see the README.
+        #
+        # Absent, not None, when the dataset could not be read — the same rule
+        # the wind attributes follow, so presence alone is a usable filter.
+        place = self.coordinator.data.places.get(self.cluster_id)
+        if place is not None:
+            self._attr_extra_state_attributes.update(
+                {
+                    "place_name": place.name,
+                    "place_distance_km": place.distance_km,
+                }
+            )
         # Wind at this fire's own coordinates, for the N nearest fires only.
         # Absent — not None — beyond that budget or when the lookup failed, so
         # a template can tell "no wind data" from "attribute exists, no value"

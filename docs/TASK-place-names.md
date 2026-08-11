@@ -42,11 +42,19 @@ talking to the maintainer.
    matters.
 2. **Granularity: GeoNames `cities1000`** (places with population ≥ 1 000;
    maintainer decision 2026-08-09 — initially the ≥5 000 tier, revised the same
-   day after coverage tests). Measured on the real data: 147 737 places across
-   230 countries, ~1.8 MB gzipped in the release, ~11 MB RAM loaded, ~96 ms for
-   a full pure-Python haversine scan on a desktop (a coarse ±1° bounding-box
-   prefilter cuts that to ~16 ms). The reference entry 43.60/3.90 resolves to
-   "Montpellier, 2.3 km" — verified. Why this tier: coverage is population-
+   day after coverage tests).
+
+   **As built (2026-08-09), superseding the planning estimates below:** the
+   `cities1000` export also carries administrative seats, so it holds **170 607
+   places across 246 countries**, not the 147 737 estimated from a filtered
+   `cities500`. Shipped file **2.19 MB** gzipped; **15.1 MB** RAM once loaded
+   (float64 coordinates plus pooled country codes); **867 ms** to load on a
+   desktop; lookups 0.2–3.3 ms cold in populated areas, 32 ms worst case in
+   empty ocean, ~1 µs cached.
+
+   Planning estimates were: 147 737 places, ~1.8 MB, ~11 MB RAM, ~96 ms per
+   scan. The reference entry 43.60/3.90 resolves to "Montpellier, 2.3 km" —
+   verified. Why this tier: coverage is population-
    driven and genuinely worldwide, but in classic sparse wildfire country the
    city tier got coarse — the Australian outback resolved to "Alice Springs,
    342 km" at ≥5 000 vs "Yulara, 12 km" at ≥1 000, boreal Canada to 240 km vs

@@ -70,6 +70,16 @@ ATTRIBUTION = "Data courtesy of NASA FIRMS"
 ATTRIBUTION_WEATHER = (
     "Wind data from MET Norway (CC BY 4.0, creativecommons.org/licenses/by/4.0/)"
 )
+# GeoNames ships under the same licence and the same rule applies: credit it
+# only while a place name is actually on the entity.
+ATTRIBUTION_PLACES = (
+    "Place names from GeoNames (CC BY 4.0, creativecommons.org/licenses/by/4.0/)"
+)
+
+# Where the shared place index lives in hass.data. One per Home Assistant, not
+# per entry: it is ~15 MB of place names (measured, 170,607 places) and two
+# entries want the same table.
+DATA_PLACES = "places"
 
 # met.no hard-blocks generic agents: their ToS wants the application and a
 # contact address. The version comes from the manifest so there is only ever

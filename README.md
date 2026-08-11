@@ -156,7 +156,7 @@ Per config entry:
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed`, `smoke_offset` — `wind_speed` is the raw value in **m/s**, for calculating with |
 | `sensor.<name>_wind_at_nearest_hotspot` | The same wind speed as an entity, so it carries its unit and follows your unit system (km/h on a metric instance, mph on a US one). Put this one on a dashboard |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW, with `strongest_entity_id` pointing at the fire it comes from |
-| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin` — plus `wind_bearing`, `wind_direction`, `wind_speed` and `smoke_offset` on the nearest fires ([see below](#wind-and-smoke-drift)) |
+| `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin`, `place_name`, `place_distance_km` ([see below](#place-names)) — plus `wind_bearing`, `wind_direction`, `wind_speed` and `smoke_offset` on the nearest fires ([see below](#wind-and-smoke-drift)) |
 
 **The distance is not always in kilometres, and the fires always are.** The
 nearest-hotspot sensor is a distance sensor, so Home Assistant shows it in your
@@ -187,6 +187,29 @@ together keep their own ids — candidates are paired nearest-first and no id is
 ever handed out twice. The matching starts over whenever the entry reloads
 (a Home Assistant restart, or saving the options), but a fire that has not
 drifted in the meantime gets the same id back from its coordinates anyway.
+
+## Place names
+
+Every fire carries the nearest town: `place_name` and `place_distance_km`
+(from the fire to that town — not to you). So a notification can say
+"fire 8 km from Yulara" instead of reading out coordinates.
+
+**No geocoding service is involved.** The integration ships GeoNames'
+`cities1000` extract — 170,607 populated places in 246 countries, about 2 MB —
+and resolves each fire against it locally. There is no API key, no rate limit
+and no account, and it keeps working when a fire has taken your internet
+connection down, which is the moment this matters most.
+
+The trade-off is granularity: you get the nearest **listed town**, never a
+street address. Where people live, that town is usually a few kilometres away;
+in the Australian outback or the boreal north it can honestly be a hundred, and
+the attribute says so rather than hiding it.
+
+`place_distance_km` is always kilometres, even on a miles instance: Home
+Assistant converts sensor *states* to your unit system but never attributes, so
+the unit is in the name instead of silently changing meaning. Miles are one
+multiplication away — [the recipe](docs/templates.md#name-the-place-a-fire-is-near)
+has both.
 
 ## Wind and smoke drift
 
@@ -256,6 +279,10 @@ step with the version you installed:
   the reflection filter; the default of *Any* keeps them.
 - A hotspot is the center of a 375 m satellite pixel; expect a few hundred
   meters of positional tolerance.
+- **A place name is the nearest listed town, not an address.** The bundled
+  dataset holds populated places from about a thousand inhabitants upwards, so
+  in empty country the nearest one is genuinely far — `place_distance_km` tells
+  you how far, and a large number there means "remote", not "wrong".
 - **The wind is a forecast, not a verdict.** It is looked up for the fire's grid
   cell, it turns, and terrain beats it. The integration reports observations and
   never scores your risk — `smoke_offset` is an angle, not a threat level —
@@ -312,5 +339,11 @@ Wind data from [MET Norway](https://api.met.no/) (Norwegian Meteorological
 Institute), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 and reduced to three values. This project is not affiliated with or endorsed by
 MET Norway.
+
+Place names from [GeoNames](https://www.geonames.org/), used under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The bundled dataset
+is their `cities1000` export trimmed to name, coordinates and country code; it
+is shipped with the integration and never queried over the network. This
+project is not affiliated with or endorsed by GeoNames.
 
 License: [MIT](LICENSE)

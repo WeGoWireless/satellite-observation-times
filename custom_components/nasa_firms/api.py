@@ -8,12 +8,18 @@ library). Keep it that way.
 from __future__ import annotations
 
 import asyncio
+import csv
+import gzip
 import json
 import math
+import zlib
+from array import array
+from bisect import bisect_left, bisect_right
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -170,6 +176,15 @@ class WeatherError(Exception):
 
     Deliberately *not* a FirmsError: fires are the product and wind is a
     nice-to-have, so the two failure modes must never be confused upstream.
+    """
+
+
+class PlaceDataError(Exception):
+    """The bundled place dataset could not be read.
+
+    Same reasoning as WeatherError: a missing or corrupt data file costs the
+    place names and nothing else. It is not a FirmsError and must never reach
+    the coordinator as one.
     """
 
 
@@ -977,3 +992,193 @@ class MetNoClient:
         entry.last_modified = resp.headers.get("Last-Modified")
         entry.valid_until = _cache_until(resp.headers, now)
         return payload
+
+
+# --- Place names -----------------------------------------------------------
+#
+# A fire arrives as a pair of coordinates, and "43.60/3.90" tells a person
+# nothing. The nearest populated place does.
+#
+# WHY THIS IS OFFLINE. Every hosted geocoder was read against its own terms
+# before this was written (2026-08-09), and each one rules itself out for
+# software that many people install:
+#
+#   * Nominatim counts the sum of ALL users of an application against one
+#     rate limit and discourages periodic requests outright. A single block,
+#     matched on the User-Agent every installation shares, would take the
+#     feature away from all of them at once.
+#   * BigDataCloud's key-less endpoint is licensed for browsers and mobile
+#     apps, explicitly not for servers.
+#   * GeoNames' own web service wants an account per user — a second
+#     credential in the config flow, for data we can simply carry.
+#   * Photon's public instance promises no availability and reserves banning.
+#
+# A bundled dataset has none of those failure modes, needs no key, and still
+# answers when a fire has taken the internet connection down — which is the
+# moment this integration exists for. The cost is granularity: the nearest
+# listed town, never a street address.
+#
+# The file is the GeoNames cities1000 export trimmed to four columns and
+# sorted by latitude, built by tools/build_places_dataset.py. It is CC BY 4.0,
+# so the credit in const.ATTRIBUTION_PLACES travels with it wherever it shows.
+
+PLACES_FILE = Path(__file__).with_name("places.csv.gz")
+
+# Cache key granularity, ~110 m. A cluster centroid jitters by a few hundred
+# metres between overpasses while the answer stays identical, so rounding the
+# key turns nearly every repeat lookup into a dict hit. The cache holds far
+# more fires than an entry ever shows at once.
+PLACE_COORD_DECIMALS = 3
+PLACE_CACHE_SIZE = 512
+
+# Search bands in km, smallest first. The index is sorted by latitude, so each
+# band bisects out a horizontal strip and measures only what lies inside it.
+#
+# Stopping at the first band that yields a hit closer than the band itself is
+# correct, not merely fast: a place outside the strip differs by more than the
+# band in latitude alone, and a degree of latitude is worth at least
+# KM_PER_DEG_LAT km (111.0 is the conservative end of 111.19-111.69), so its
+# distance necessarily exceeds the band. The last band spans the globe, so an
+# empty stretch of ocean returns what a full scan would.
+PLACE_SEARCH_BANDS_KM = (25.0, 100.0, 400.0, 1600.0, 20100.0)
+
+# None is a legitimate cached answer ("nothing within reach"), so absence from
+# the cache needs a marker of its own.
+_MISSING = object()
+
+
+@dataclass
+class PlaceMatch:
+    """The populated place nearest to a point, and how far off it is."""
+
+    name: str
+    country: str  # ISO 3166-1 alpha-2
+    distance_km: float
+
+
+class PlaceIndex:
+    """Nearest-populated-place lookup over the bundled GeoNames extract.
+
+    Loads once, lazily, and keeps the table for the lifetime of the process:
+    one index serves every config entry, because two entries watching two
+    corners of the world still want the same table, and it is the largest
+    thing this integration holds in memory.
+
+    Both `load()` and `nearest()` block — the load parses ~170k rows and a
+    cold lookup measures a strip of them. Call them from an executor, never
+    from the event loop.
+    """
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        self._path = Path(path) if path is not None else PLACES_FILE
+        self._lats = array("d")
+        self._lons = array("d")
+        self._names: list[str] = []
+        self._countries: list[str] = []
+        self._loaded = False
+        # Latched so an unreadable file is reported once, not every cycle.
+        self._failed = False
+        self._cache: OrderedDict[tuple[float, float], PlaceMatch | None] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._lats)
+
+    @property
+    def loaded(self) -> bool:
+        """Whether the dataset is in memory. For diagnostics."""
+        return self._loaded
+
+    def load(self) -> None:
+        """Read the dataset into memory. Idempotent, blocking.
+
+        Raises PlaceDataError once if the file is unreadable, then stays
+        silent: a broken install should cost the place names, not a warning
+        every fifteen minutes for as long as Home Assistant runs.
+        """
+        if self._loaded or self._failed:
+            return
+        self._failed = True
+        try:
+            with gzip.open(self._path, "rt", encoding="utf-8", newline="") as handle:
+                lats, lons = array("d"), array("d")
+                names: list[str] = []
+                countries: list[str] = []
+                # ~250 distinct country codes over ~170k rows, and csv hands
+                # back a fresh string for every one of them. Pooling is worth
+                # several megabytes for two lines.
+                pool: dict[str, str] = {}
+                for row in csv.reader(handle):
+                    if len(row) < 4 or not row[2]:
+                        continue
+                    try:
+                        latitude, longitude = float(row[0]), float(row[1])
+                    except ValueError:
+                        continue
+                    lats.append(latitude)
+                    lons.append(longitude)
+                    names.append(row[2])
+                    countries.append(pool.setdefault(row[3], row[3]))
+        # Every way this file can be broken has to land here. An interrupted
+        # download leaves a truncated gzip stream (zlib.error, EOFError) or
+        # bytes that are not UTF-8 — and an exception escaping this method
+        # would fail the whole update cycle and take the fire entities down
+        # with it, which is the one outcome a missing place name must not have.
+        except (OSError, EOFError, csv.Error, UnicodeDecodeError, zlib.error) as err:
+            raise PlaceDataError(
+                f"place dataset unreadable ({self._path}): {err}"
+            ) from err
+
+        # The generator writes latitude order and the search bisects on it.
+        # Verified rather than trusted: an unsorted file would not fail, it
+        # would confidently return the wrong neighbour.
+        if any(lats[index] > lats[index + 1] for index in range(len(lats) - 1)):
+            order = sorted(range(len(lats)), key=lats.__getitem__)
+            lats = array("d", (lats[i] for i in order))
+            lons = array("d", (lons[i] for i in order))
+            names = [names[i] for i in order]
+            countries = [countries[i] for i in order]
+
+        self._lats, self._lons = lats, lons
+        self._names, self._countries = names, countries
+        self._loaded = True
+        self._failed = False
+
+    def nearest(self, latitude: float, longitude: float) -> PlaceMatch | None:
+        """The nearest populated place, or None if the dataset holds none."""
+        key = (
+            round(latitude, PLACE_COORD_DECIMALS),
+            round(longitude, PLACE_COORD_DECIMALS),
+        )
+        cached = self._cache.get(key, _MISSING)
+        if cached is not _MISSING:
+            self._cache.move_to_end(key)
+            return cached  # type: ignore[return-value]
+        match = self._search(latitude, longitude)
+        self._cache[key] = match
+        if len(self._cache) > PLACE_CACHE_SIZE:
+            self._cache.popitem(last=False)
+        return match
+
+    def _search(self, latitude: float, longitude: float) -> PlaceMatch | None:
+        self.load()
+        lats, lons = self._lats, self._lons
+        if not lats:
+            return None
+        best_index, best_km = -1, None
+        for band in PLACE_SEARCH_BANDS_KM:
+            dlat = band / KM_PER_DEG_LAT
+            start = bisect_left(lats, latitude - dlat)
+            stop = bisect_right(lats, latitude + dlat)
+            for index in range(start, stop):
+                km = haversine_km(latitude, longitude, lats[index], lons[index])
+                if best_km is None or km < best_km:
+                    best_index, best_km = index, km
+            if best_km is not None and best_km <= band:
+                break
+        if best_index < 0 or best_km is None:
+            return None
+        return PlaceMatch(
+            name=self._names[best_index],
+            country=self._countries[best_index],
+            distance_km=round(best_km, 1),
+        )
