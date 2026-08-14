@@ -31,9 +31,13 @@ great-circle values, so they stay correct at high latitudes:
 
 ```jinja
 {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
-Fire {{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
+Fire {{ states(s, rounded=True) }} {{ state_attr(s, 'unit_of_measurement') }}
 {{ state_attr(s, 'direction') }}
 ```
+
+`rounded=True` returns the state at the entity's display precision. It matters
+on any instance that converts the unit: the raw state of a sensor displaying
+miles is the converted float in full precision, 14 decimal places and all.
 
 ## Name the place a fire is near
 
@@ -184,7 +188,7 @@ exactly when the two raw numbers are close:
 {% if fire is not none and wind is not none %}
   {# 0 deg = wind pushing along the fire-to-you line, 180 deg = the other way #}
   {% set delta = (((wind - fire) + 180) % 360 - 180) | abs | round %}
-  Fire {{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
+  Fire {{ states(s, rounded=True) }} {{ state_attr(s, 'unit_of_measurement') }}
   {{ state_attr(s, 'direction') }},
   wind from {{ state_attr(s, 'wind_direction') }} at
   {{ (state_attr(s, 'wind_speed') * 3.6) | round(1) }} km/h,

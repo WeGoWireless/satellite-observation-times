@@ -161,7 +161,7 @@ cards:
       {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
       {% set n = 'sensor.firms_43_60_3_90_hotspots' %}
       {% set w = 'sensor.firms_43_60_3_90_wind_at_nearest_hotspot' %}
-      {% set dist = states(s) %}
+      {% set dist = states(s, rounded=True) %}
       {%- if dist in ['unknown', 'unavailable'] -%}
       ### No active fires
       Nothing detected in the area you are monitoring.

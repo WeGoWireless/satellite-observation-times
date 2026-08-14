@@ -87,6 +87,9 @@ variables:
   title: Fire within {{ limit }} {{ unit }}
   # Built in one place so the wind half can be left out cleanly when there is
   # no reading, rather than printing "wind unknown" into an alert.
+  # `rounded=True` asks for the state at the entity's display precision: the
+  # raw state after a unit conversion is the unrounded float, so an instance
+  # showing miles would read out 14 decimal places here.
   message: >-
     {%- set dir = state_attr(sensor, 'direction') -%}
     {%- set fire = state_attr(sensor, 'bearing') -%}
@@ -96,7 +99,7 @@ variables:
     {%- set drift = none if off is none else
         ('towards you' if off <= 60 else
         ('past you to one side' if off <= 120 else 'away from you')) -%}
-    Fire detected {{ states(sensor) }} {{ unit }}{{ ' ' ~ dir if dir else '' }}.
+    Fire detected {{ states(sensor, rounded=True) }} {{ unit }}{{ ' ' ~ dir if dir else '' }}.
     {{- '' if off is none else
         ' Wind at the fire is pushing the smoke ' ~ drift ~
         ' (' ~ (off | round) ~ '° off the line to you).' }}

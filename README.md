@@ -164,11 +164,13 @@ instance's unit system — kilometres on a metric instance, **miles on a US one*
 and Settings → Entities lets you override that per entity. The fire entities
 cannot follow: `geo_location` has no unit conversion, so their state is in
 kilometres on every instance. Anything that prints the sensor's number should
-take the unit from the entity rather than assume one:
+take the unit from the entity rather than assume one — and ask for the
+*displayed* value, because after a unit conversion the raw state is the full
+float (`35.41474612803779 mi`):
 
 ```jinja
 {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
-{{ states(s) }} {{ state_attr(s, 'unit_of_measurement') }}
+{{ states(s, rounded=True) }} {{ state_attr(s, 'unit_of_measurement') }}
 ```
 
 **The sensor ids follow your Home Assistant language.** Home Assistant builds an
