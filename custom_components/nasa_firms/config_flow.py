@@ -224,7 +224,10 @@ class NasaFirmsConfigFlow(ConfigFlow, domain=DOMAIN):
             await client.fetch(
                 data[CONF_SATELLITES][0], data[CONF_WINDOW], bbox, count=1
             )
-        except FirmsAuthError:
+        except FirmsAuthError as err:
+            # The flow shows a translated one-liner; which host said what
+            # (NASA's actual response text) is only visible in the log.
+            _LOGGER.warning("MAP_KEY validation failed: %s", err)
             return {"base": "invalid_auth"}
         except FirmsError:
             _LOGGER.exception("Validation fetch failed")

@@ -25,7 +25,16 @@ from typing import Any
 
 import aiohttp
 
-BASE_URL = "https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/{region}/{map_key}/"
+# FIRMS answers on two hostnames, and they do not accept the same MAP_KEYs:
+# a key can fetch data on one and draw HTTP 403 from the other (GitHub
+# issue #2; confirmed 2026-08-14 with two real keys that each work on only
+# one of them). Which host knows a given key is not visible anywhere, so the
+# client asks the second host before treating a rejection as final.
+FIRMS_HOSTS = (
+    "https://firms.modaps.eosdis.nasa.gov",
+    "https://firms2.modaps.eosdis.nasa.gov",
+)
+BASE_URL = "{host}/mapserver/wfs/{region}/{map_key}/"
 
 # Generous on purpose: the regional MapServers routinely take double-digit
 # seconds over a busy box. In the message as well as in the code, so the two
@@ -701,6 +710,11 @@ class PersistentSources:
         return cls(cells)
 
 
+def _short_body(body: str) -> str:
+    """Collapse an error body onto one line and cap it for a log message."""
+    return " ".join(body.split())[:160]
+
+
 class FirmsClient:
     """Minimal async client for the FIRMS WFS GeoJSON endpoints."""
 
@@ -710,6 +724,9 @@ class FirmsClient:
         self._session = session
         self._map_key = map_key
         self._region = region
+        # Whichever host last accepted the key. Preferring it keeps the
+        # fallback's extra request a once-per-client cost, not per fetch.
+        self._host = FIRMS_HOSTS[0]
 
     async def fetch(
         self,
@@ -719,8 +736,35 @@ class FirmsClient:
         count: int = 1000,
     ) -> list[FirmsHotspot]:
         """Fetch hotspots for one satellite layer within a bounding box."""
+        # A rejection means "this host does not know the key", not "the key
+        # is bad" (see FIRMS_HOSTS), so the other host gets to answer before
+        # the rejection counts. Only auth failures hop hosts: timeouts and
+        # server errors raise at once rather than doubling the worst-case
+        # wait for an outage both hosts are likely to share.
+        rejections: list[str] = []
+        for host in (self._host, *(h for h in FIRMS_HOSTS if h != self._host)):
+            try:
+                hotspots = await self._fetch_from(host, satellite, window, bbox, count)
+            except FirmsAuthError as err:
+                rejections.append(str(err))
+                continue
+            self._host = host
+            return hotspots
+        raise FirmsAuthError(
+            "MAP_KEY rejected by every FIRMS host: " + "; ".join(rejections)
+        )
+
+    async def _fetch_from(
+        self,
+        host: str,
+        satellite: str,
+        window: str,
+        bbox: tuple[float, float, float, float],
+        count: int,
+    ) -> list[FirmsHotspot]:
+        """One GetFeature request against one FIRMS host."""
         lat_s, lon_w, lat_n, lon_e = bbox
-        url = BASE_URL.format(region=self._region, map_key=self._map_key)
+        url = BASE_URL.format(host=host, region=self._region, map_key=self._map_key)
         params = {
             "SERVICE": "WFS",
             "REQUEST": "GetFeature",
@@ -745,7 +789,14 @@ class FirmsClient:
         except aiohttp.ClientError as err:
             raise FirmsError(f"FIRMS request failed: {err}") from err
         if resp.status in (401, 403):
-            raise FirmsAuthError(f"MAP_KEY rejected (HTTP {resp.status})")
+            # NASA's own words stay in the message. Its 403 text does not
+            # even distinguish a bad key from an exhausted transaction limit,
+            # but a bare "rejected" hid that much and sent issue #2's
+            # reporter source-diving to learn what the server actually said.
+            detail = _short_body(body) or "no response body"
+            raise FirmsAuthError(
+                f"{host.removeprefix('https://')} answered HTTP {resp.status}: {detail}"
+            )
         if resp.status != 200:
             raise FirmsError(f"FIRMS returned HTTP {resp.status}: {body[:200]}")
         try:
@@ -753,7 +804,10 @@ class FirmsClient:
         except ValueError as err:
             # Invalid keys come back as an HTML/XML error page, not GeoJSON.
             if "map_key" in body.lower():
-                raise FirmsAuthError(f"MAP_KEY rejected: {body[:200]}") from err
+                raise FirmsAuthError(
+                    f"{host.removeprefix('https://')} rejected the MAP_KEY: "
+                    f"{_short_body(body)}"
+                ) from err
             raise FirmsError(f"Unexpected non-GeoJSON response: {body[:200]}") from err
         features = data.get("features") or []
         return [

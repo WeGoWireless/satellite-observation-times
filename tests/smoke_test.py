@@ -497,13 +497,16 @@ async def test_firms_client_failures() -> None:
     print("FIRMS client: failures")
     bbox = (43.0, 3.0, 44.0, 4.0)
 
-    client = api.FirmsClient(FakeSession(TimeoutError()), "key", "Europe")
+    session = FakeSession(TimeoutError())
+    client = api.FirmsClient(session, "key", "Europe")
     try:
         await client.fetch("noaa20", api.WINDOW_24H, bbox)
         check("timeout raises FirmsError", False, "no exception")
     except api.FirmsError as err:
         check("timeout raises FirmsError", True)
         check("and the message says so", "timed out" in str(err), f"got {err!r}")
+    # Only rejections hop hosts; an outage must not double the wait.
+    check("a timeout does not try the second host", len(session.calls) == 1)
 
     client = api.FirmsClient(
         FakeSession(_ClientError("connection reset")), "key", "Europe"
@@ -524,15 +527,78 @@ async def test_firms_client_failures() -> None:
         check("naming the status", "500" in str(err))
 
     # FirmsAuthError subclasses FirmsError, so getting the plain kind here
-    # would silently skip the reauth flow.
-    client = api.FirmsClient(FakeSession(FakeResponse(403, "denied", {})), "key", "Europe")
+    # would silently skip the reauth flow. A rejection is only final once
+    # both hosts said no — the fallback itself is test_firms_host_fallback.
+    client = api.FirmsClient(
+        FakeSession(FakeResponse(403, "denied", {}), FakeResponse(403, "denied", {})),
+        "key",
+        "Europe",
+    )
     try:
         await client.fetch("noaa20", api.WINDOW_24H, bbox)
-        check("HTTP 403 raises FirmsAuthError", False, "no exception")
-    except api.FirmsAuthError:
-        check("HTTP 403 raises FirmsAuthError", True)
+        check("HTTP 403 from both hosts raises FirmsAuthError", False, "no exception")
+    except api.FirmsAuthError as err:
+        check("HTTP 403 from both hosts raises FirmsAuthError", True)
+        check(
+            "naming both hosts and NASA's answer",
+            "firms.modaps" in str(err)
+            and "firms2.modaps" in str(err)
+            and "denied" in str(err),
+            f"got {err!r}",
+        )
     except api.FirmsError as err:
-        check("HTTP 403 raises FirmsAuthError", False, f"got FirmsError: {err}")
+        check("HTTP 403 from both hosts raises FirmsAuthError", False, f"got FirmsError: {err}")
+
+
+async def test_firms_host_fallback() -> None:
+    """A MAP_KEY rejected by one FIRMS host is retried on the other.
+
+    The two FIRMS hostnames do not accept the same keys (issue #2): a key
+    can fetch data on firms2 while firms answers HTTP 403, and the other way
+    round. The client must ask the second host before giving up, and then
+    keep using the one that said yes.
+    """
+    print("FIRMS client: host fallback")
+    bbox = (43.0, 3.0, 44.0, 4.0)
+    empty = json.dumps({"type": "FeatureCollection", "features": []})
+    rejected = "MAP_KEY is invalid or your have exceeded your transaction/time limit."
+
+    session = FakeSession(
+        FakeResponse(403, rejected, {}),
+        FakeResponse(200, empty, {}),
+        FakeResponse(200, empty, {}),
+    )
+    client = api.FirmsClient(session, "key", "Europe")
+    result = await client.fetch("noaa20", api.WINDOW_24H, bbox)
+    check("a key only the second host knows still fetches", result == [])
+    check(
+        "the first ask goes to firms",
+        session.calls[0]["url"].startswith("https://firms.modaps"),
+        f"got {session.calls[0]['url']}",
+    )
+    check(
+        "the rejection is retried on firms2",
+        session.calls[1]["url"].startswith("https://firms2.modaps"),
+        f"got {session.calls[1]['url']}",
+    )
+
+    await client.fetch("noaa20", api.WINDOW_24H, bbox)
+    check("the accepting host is remembered", len(session.calls) == 3)
+    check(
+        "and asked first from then on",
+        session.calls[2]["url"].startswith("https://firms2.modaps"),
+        f"got {session.calls[2]['url']}",
+    )
+
+    # The HTML "invalid MAP_KEY" page is a rejection too, not a parse error.
+    session = FakeSession(
+        FakeResponse(200, "<html>Invalid MAP_KEY. Register at ...</html>", {}),
+        FakeResponse(200, empty, {}),
+    )
+    client = api.FirmsClient(session, "key", "Europe")
+    result = await client.fetch("noaa20", api.WINDOW_24H, bbox)
+    check("an HTML rejection also falls through to the second host", result == [])
+    check("with exactly one retry", len(session.calls) == 2)
 
 
 async def test_client_request() -> None:
@@ -942,6 +1008,7 @@ def main() -> int:
     test_place_index_concurrent_load()
     test_place_index_failures()
     asyncio.run(test_firms_client_failures())
+    asyncio.run(test_firms_host_fallback())
     asyncio.run(test_client_request())
     asyncio.run(test_client_caching())
     asyncio.run(test_client_cache_bounds())
