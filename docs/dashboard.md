@@ -141,8 +141,8 @@ explicitly, or accept that one card means one combined view.
 A map answers *where*. This pairs it with the rest — how far, how strong, seen
 by which satellites, and the wind at the fire. It deliberately spells out what
 each number means instead of printing bare values: `nominal` and `1.19 MW` tell
-you nothing until someone says what they are. Replace the three entity ids on
-the first three lines with yours and paste it in:
+you nothing until someone says what they are. Replace the four entity ids on
+the first four lines with yours and paste it in:
 
 ```yaml
 type: vertical-stack
@@ -161,6 +161,7 @@ cards:
       {% set s = 'sensor.firms_43_60_3_90_nearest_hotspot' %}
       {% set n = 'sensor.firms_43_60_3_90_hotspots' %}
       {% set w = 'sensor.firms_43_60_3_90_wind_at_nearest_hotspot' %}
+      {% set o = 'sensor.firms_43_60_3_90_next_satellite_observation' %}
       {% set dist = states(s, rounded=True) %}
       {%- if dist in ['unknown', 'unavailable'] -%}
       ### No active fires
@@ -187,6 +188,11 @@ cards:
       Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
       {%- endif %}
       {%- endif %}
+      {%- set last = state_attr(o, 'previous_observation') %}
+      {%- if last is not none %}{% set _ = now() %}
+
+      **Last look** — a satellite passed over {{ time_since(as_datetime(last), 1) }} ago. Data from a pass takes up to three hours to reach FIRMS, so a quiet map straight after one is not yet an answer.{% if states(o) not in ['unknown', 'unavailable'] %} Next look in {{ time_until(as_datetime(states(o)), 2) }}.{% endif %}
+      {%- endif %}
 ```
 
 It renders roughly like this:
@@ -200,10 +206,21 @@ It renders roughly like this:
 >
 > **Wind at the fire** — from the NW at 23.8 km/h, pushing the smoke **past you to one side** (90° off the line to you).
 > Wind shifts, and slope and fuel matter as much: this is the air at the fire right now, not a prediction of where the smoke ends up.
+>
+> **Last look** — a satellite passed over 41 minutes ago. Data from a pass takes up to three hours to reach FIRMS, so a quiet map straight after one is not yet an answer. Next look in 1 hour 28 minutes.
 
-Every branch is covered: no fires in range collapses it to two lines, a failed
-weather lookup only replaces the wind sentence, and below roughly 3 m/s the card
-adds a line warning that the wind direction is then close to meaningless.
+Every branch is covered: no fires in range collapses it to a heading and two
+lines, a failed weather lookup only replaces the wind sentence, and below
+roughly 3 m/s the card adds a line warning that the wind direction is then
+close to meaningless.
+
+**The last-look line stays in the no-fire case on purpose** — that is the one
+place on the card where it changes the meaning. “No active fires” on its own
+reads as an all-clear; “no active fires, and the last satellite pass was seven
+hours ago” reads as what it is. It disappears only when CelesTrak has never
+answered, and it carries a `now()` reference for the reason spelled out in
+[Is the data still arriving?](templates.md#is-the-data-still-arriving) — without
+one the elapsed time would freeze until some other state changed.
 
 **Why the card reads the wind twice.** The speed it prints comes from the wind
 *entity*, so it arrives with a unit attached and in whatever your instance

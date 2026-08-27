@@ -156,6 +156,7 @@ Per config entry:
 | `sensor.<name>_nearest_hotspot` | Distance to the closest fire (`unknown` when there is none). Attributes: `nearest_entity_id`, `bearing`, `direction`, `wind_bearing`, `wind_direction`, `wind_speed`, `smoke_offset` — `wind_speed` is the raw value in **m/s**, for calculating with |
 | `sensor.<name>_wind_at_nearest_hotspot` | The same wind speed as an entity, so it carries its unit and follows your unit system (km/h on a metric instance, mph on a US one). Put this one on a dashboard |
 | `sensor.<name>_max_fire_radiative_power` | Strongest fire in MW, with `strongest_entity_id` pointing at the fire it comes from |
+| `sensor.<name>_next_satellite_observation` | When one of your satellites next passes over, with the satellite, the window, how close it comes and the sub-satellite point as attributes — plus `previous_observation` and `previous_satellite` for the pass just gone ([see below](#satellite-observation-times)) |
 | `geo_location.*` (source `nasa_firms`) | One entity per fire, with `bearing`, `direction`, `frp_mw`, `intensity`, `confidence`, `satellites`, `detections`, `brightness_k`, `acquired`, `origin`, `place_name`, `place_distance_km` ([see below](#place-names)) — plus `wind_bearing`, `wind_direction`, `wind_speed` and `smoke_offset` on the nearest fires ([see below](#wind-and-smoke-drift)) |
 
 **The distance is not always in kilometres, and the fires always are.** The
@@ -189,6 +190,42 @@ together keep their own ids — candidates are paired nearest-first and no id is
 ever handed out twice. The matching starts over whenever the entry reloads
 (a Home Assistant restart, or saving the options), but a fire that has not
 drifted in the meantime gets the same id back from its coordinates anyway.
+
+## Satellite observation times
+
+The **Next satellite observation** sensor answers one narrow question: **when was
+the last look, and when is the next one due?** Its state is the next time one of
+the satellites configured on that entry passes over you. Its attributes carry
+which satellite, the window, how close it comes to your location and the
+sub-satellite point — and, for the pass just gone, `previous_observation` and
+`previous_satellite`.
+
+**A look is not a delivery.** The timestamp says when a satellite passed over,
+not when its data reaches you — FIRMS NRT arrives up to ~3 h after the
+observation (see [Honest limitations](#honest-limitations)). The hours right
+after a pass are therefore the *least* informative moment on a dashboard:
+"no fires, last look eight minutes ago" is not yet a statement about that look
+at all, because nothing from it has arrived. The [card](docs/dashboard.md#the-map-plus-everything-the-integration-knows)
+and the [automation](docs/templates.md#when-did-a-satellite-last-look) below
+build that wait in rather than hide it.
+
+**Not every pass is a good look.** `closest_ground_track_km` says how far your
+location sat from the satellite's ground track. VIIRS scans about 1520 km to
+either side, and a point near that edge is seen at a much coarser pixel and a
+far flatter angle than one passed overhead. A grazing pass counts as an
+opportunity here; it is not the same observation.
+
+**And a pass with no detection is not an all-clear.** Cloud, scan geometry, fire
+size and processing latency all decide what FIRMS reports. The integration
+publishes orbital facts and interprets nothing.
+
+Orbital elements come from [CelesTrak](https://celestrak.org/), cached for at
+least two hours and shared by every entry; the prediction stays inside a
+24-hour window either side of now. The source is supplementary — if CelesTrak
+is unreachable, fire data updates exactly as before. A non-200 answer is never
+retried on the update cycle, because their usage policy asks clients to stop
+rather than hammer; the integration waits a full day before trying again and
+says so in Repairs meanwhile.
 
 ## Place names
 
