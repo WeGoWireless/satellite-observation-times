@@ -107,6 +107,41 @@ def _max_frp_attributes(coordinator: FirmsCoordinator) -> dict[str, Any]:
     return {"strongest_entity_id": coordinator.entity_ids.get(strongest.id)}
 
 
+def _satellite_observation_attributes(
+    coordinator: FirmsCoordinator,
+) -> dict[str, Any]:
+    """Orbital facts for the next look and the previous look's identity."""
+    observation = coordinator.data.next_observation
+    previous = coordinator.data.previous_observation
+    if observation is None:
+        return {
+            "satellite": None,
+            "satellite_name": None,
+            "norad_id": None,
+            "window_start": None,
+            "window_end": None,
+            "closest_ground_track_km": None,
+            "closest_subpoint_latitude": None,
+            "closest_subpoint_longitude": None,
+            "swath_km": None,
+            "previous_observation": previous.closest.isoformat() if previous else None,
+            "previous_satellite": previous.satellite if previous else None,
+        }
+    return {
+        "satellite": observation.satellite,
+        "satellite_name": observation.satellite_name,
+        "norad_id": observation.norad_id,
+        "window_start": observation.start.isoformat(),
+        "window_end": observation.end.isoformat(),
+        "closest_ground_track_km": observation.closest_ground_track_km,
+        "closest_subpoint_latitude": observation.closest_subpoint_latitude,
+        "closest_subpoint_longitude": observation.closest_subpoint_longitude,
+        "swath_km": observation.swath_km,
+        "previous_observation": previous.closest.isoformat() if previous else None,
+        "previous_satellite": previous.satellite if previous else None,
+    }
+
+
 SENSORS: tuple[FirmsSensorDescription, ...] = (
     FirmsSensorDescription(
         key="hotspot_count",
@@ -165,6 +200,14 @@ SENSORS: tuple[FirmsSensorDescription, ...] = (
         suggested_display_precision=1,
         value_fn=lambda d: d.max_frp,
         attributes_fn=_max_frp_attributes,
+    ),
+    FirmsSensorDescription(
+        key="satellite_observation",
+        translation_key="satellite_observation",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:satellite-variant",
+        value_fn=lambda d: d.next_observation.closest if d.next_observation else None,
+        attributes_fn=_satellite_observation_attributes,
     ),
 )
 
