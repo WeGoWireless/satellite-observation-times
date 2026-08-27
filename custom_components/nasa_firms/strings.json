@@ -112,7 +112,7 @@
     },
     "orbit_http": {
       "title": "Satellite observation times are unavailable for {name}",
-      "description": "CelesTrak returned HTTP {status} while the integration was fetching satellite orbital data. The integration did not retry the request, in accordance with CelesTrak's usage policy. FIRMS fire data continues to update normally; only the previous/next satellite observation context is unavailable.\n\nThe integration will not automatically retry a non-200 response. Check the Home Assistant network path to celestrak.org and CelesTrak service status; after the cause is resolved, restart Home Assistant to try again."
+      "description": "CelesTrak answered HTTP {status} while the integration was fetching orbital elements. Their usage policy asks clients to stop on an error rather than retry it, so this one was not repeated on the update cycle. FIRMS fire data keeps updating as normal \u2014 only the previous and next satellite observation are missing.\n\nThe integration tries once more after 24 hours and clears this notice by itself if that succeeds; restarting Home Assistant tries again straight away. Worth checking in the meantime: whether this instance can reach celestrak.org, and whether CelesTrak itself is having trouble."
     }
   },
   "entity": {
