@@ -233,6 +233,17 @@ Every fire carries the nearest town: `place_name` and `place_distance_km`
 (from the fire to that town — not to you). So a notification can say
 "fire 8 km from Yulara" instead of reading out coordinates.
 
+**Both sit on the fire, not on the sensors.** Each fire is its own
+`geo_location` entity, and that is where the two attributes are — the sensors
+deliberately do not repeat them, because with several fires in range there is
+no single correct value to put on one. This catches people out, since the
+sensors are what you meet first in the entity list. The nearest-hotspot sensor
+points at the right entity: read its `nearest_entity_id`, then read the place
+from there. [The recipes](docs/templates.md#name-the-place-a-fire-is-near) make
+that hop, and the
+[proximity blueprint](blueprints/automation/nasa_firms/fire_within_distance.yaml)
+prints the name for you without any templating at all.
+
 **No geocoding service is involved.** The integration ships GeoNames'
 `cities1000` extract — 170,607 populated places in 246 countries, about 2 MB —
 and resolves each fire against it locally. There is no API key, no rate limit
