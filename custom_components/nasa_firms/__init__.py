@@ -10,6 +10,8 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import CelesTrakClient, FirmsClient, MetNoClient, PlaceIndex
+from .ngfs import NgfsClient
+from .ngfs_coordinator import NgfsCoordinator
 from .const import (
     CONF_MAP_KEY,
     CONF_REGION,
@@ -99,6 +101,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NasaFirmsConfigEntry) ->
     # is precisely the thing someone opens an issue about.
     await coordinator.async_load_sources()
     await coordinator.async_config_entry_first_refresh()
+    ngfs = NgfsCoordinator(hass, entry, NgfsClient(session), coordinator)
+    await ngfs.async_config_entry_first_refresh()
+    coordinator.ngfs = ngfs
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))

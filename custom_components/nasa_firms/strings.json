@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "NASA FIRMS Wildfire Monitor",
-        "description": "Get a free MAP_KEY at {map_key_url} — it is stored in the config entry and never shown in the UI.",
+        "description": "Get a free MAP_KEY at {map_key_url} \u2014 it is stored in the config entry and never shown in the UI.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
           "location": "Location and radius to monitor",
+          "radius": "Monitoring radius",
           "satellites": "Satellites",
           "window": "Detection window",
           "min_confidence": "Minimum confidence",
@@ -22,10 +23,10 @@
     },
     "error": {
       "invalid_auth": "FIRMS rejected the MAP_KEY.",
-      "cannot_connect": "Could not reach the FIRMS servers — check your connection and try again.",
+      "cannot_connect": "Could not reach the FIRMS servers \u2014 check your connection and try again.",
       "no_region": "FIRMS has no service covering that location. Its feeds are regional and leave parts of the world out; this spot falls in one of the gaps.",
       "no_satellites": "Select at least one satellite.",
-      "radius_too_large": "The radius is too large — keep it at 500 km or less. Beyond that FIRMS caps the response and fires would be missing without you noticing."
+      "radius_too_large": "The radius is too large \u2014 keep it at 310 miles or less. Beyond that FIRMS caps the response and fires would be missing without you noticing."
     },
     "abort": {
       "already_configured": "This location is already being monitored.",
@@ -35,26 +36,31 @@
   "options": {
     "step": {
       "init": {
-        "title": "NASA FIRMS options",
+        "title": "Wildfire Monitor options",
         "description": "Ignore zones configured: {zone_count}",
         "menu_options": {
           "filters": "Satellites and filters",
-          "zones": "Ignore zones"
+          "zones": "Ignore zones",
+          "monitoring": "Seasonal monitoring"
         }
       },
       "filters": {
         "title": "Satellites and filters",
         "data": {
+          "radius": "Monitoring radius",
           "satellites": "Satellites",
           "window": "Detection window",
           "min_confidence": "Minimum confidence",
           "min_frp": "Minimum fire radiative power (0 = no filter)",
           "wind_fires": "Fires with a wind reading",
-          "auto_ignore": "Hide learned persistent heat sources"
+          "auto_ignore": "Hide learned persistent heat sources",
+          "alert_radius": "Nearby-fire alert radius"
         },
         "data_description": {
+          "radius": "Used by both NASA FIRMS and NOAA NGFS. The integration keeps metric internally but this setting is shown in miles.",
           "wind_fires": "How many of the nearest fires get the wind at their own coordinates each cycle. Each fire is one MET Norway request per refresh; fires beyond this count carry no wind attributes.",
-          "auto_ignore": "Learns which spots radiate month after month — factories, flare stacks, kilns — and hides their routine detections. A spot has to appear across 60 days before it counts, so this does nothing for the first two months. A detection much brighter than that spot's usual output is always shown, so a real fire next to a factory still comes through."
+          "auto_ignore": "Learns which spots radiate month after month \u2014 factories, flare stacks, kilns \u2014 and hides their routine detections. A spot has to appear across 60 days before it counts, so this does nothing for the first two months. A detection much brighter than that spot's usual output is always shown, so a real fire next to a factory still comes through.",
+          "alert_radius": "Separate from the monitoring radius. Fires can be collected for regional smoke awareness without entering the nearby-fire alert zone. Shown in miles."
         }
       },
       "zones": {
@@ -68,7 +74,7 @@
       },
       "add_zone": {
         "title": "Add an ignore zone",
-        "description": "Drag the pin onto the heat source and size the circle to cover it. Keep it tight: anything inside is invisible to the integration, including a real fire. Maximum {max_km} km.",
+        "description": "Drag the pin onto the heat source and size the circle to cover it. Keep it tight: anything inside is invisible to the integration, including a real fire. Maximum {max_miles} miles.",
         "data": {
           "name": "Name",
           "location": "Location and radius"
@@ -79,16 +85,42 @@
         "data": {
           "ignore_zones": "Zones to remove"
         }
+      },
+      "monitoring": {
+        "title": "Seasonal monitoring",
+        "description": "Automatic mode uses full-rate monitoring during fire season and reduced-rate monitoring outside it. Set the polling intervals for both FIRMS and NOAA NGFS below.",
+        "data": {
+          "monitoring_mode": "Monitoring mode",
+          "fire_season_start_month": "Fire season start month",
+          "fire_season_start_day": "Fire season start day",
+          "fire_season_end_month": "Fire season end month",
+          "fire_season_end_day": "Fire season end day",
+          "firms_full_interval_min": "FIRMS fire-season interval (minutes)",
+          "ngfs_full_interval_min": "NGFS fire-season interval (minutes)",
+          "firms_reduced_interval_min": "FIRMS off-season interval (minutes)",
+          "ngfs_reduced_interval_min": "NGFS off-season interval (minutes)"
+        },
+        "data_description": {
+          "monitoring_mode": "Automatic seasonal switches between full and reduced using the dates below. Full monitoring always uses summer cadence. Reduced monitoring always uses off-season cadence. Disabled makes no scheduled wildfire-data requests.",
+          "fire_season_start_month": "1 = January, 5 = May, 12 = December.",
+          "fire_season_end_month": "1 = January, 10 = October, 12 = December.",
+          "firms_full_interval_min": "Default 15 minutes.",
+          "ngfs_full_interval_min": "Default 5 minutes.",
+          "firms_reduced_interval_min": "Default 120 minutes (2 hours).",
+          "ngfs_reduced_interval_min": "Default 60 minutes (1 hour)."
+        }
       }
     },
     "error": {
-      "zone_radius_too_large": "That zone is too large. An ignore zone covers a known heat source, not a region — keep it to 20 km or less."
+      "zone_radius_too_large": "That zone is too large. An ignore zone covers a known heat source, not a region \u2014 keep it to 12 miles or less.",
+      "invalid_season_date": "The fire-season start or end date is not a valid month/day.",
+      "alert_radius_exceeds_monitoring": "The nearby-fire alert radius must be the same as or smaller than the monitoring radius."
     }
   },
   "services": {
     "get_wind": {
       "name": "Get wind at a fire",
-      "description": "Returns the wind at one fire's own coordinates, right now: where it blows from, how fast, and the smoke offset — the angle between where the wind pushes the smoke and the line from that fire to your monitored location (0 = straight at you, 180 = straight away). Works for any fire, including those beyond the per-cycle wind budget. This is the current wind vector, not a forecast of where the smoke ends up, and never a safety assessment.",
+      "description": "Returns the wind at one fire's own coordinates, right now: where it blows from, how fast, and the smoke offset \u2014 the angle between where the wind pushes the smoke and the line from that fire to your monitored location (0 = straight at you, 180 = straight away). Works for any fire, including those beyond the per-cycle wind budget. This is the current wind vector, not a forecast of where the smoke ends up, and never a safety assessment.",
       "fields": {
         "entity_id": {
           "name": "Fire",
@@ -108,7 +140,7 @@
   "issues": {
     "truncated": {
       "title": "Fires are missing from {name}",
-      "description": "FIRMS cut the response off at its cap of {cap} detections per satellite, so every number for this location is too low — the number of fires, the distance to the nearest one, and the strongest fire radiative power. Nothing about those numbers looks wrong, which is why this is here.\n\nMake the request smaller until the cap is no longer reached: shrink the radius, switch the detection window from 7 days back to 24 hours, or raise the minimum confidence or minimum fire radiative power. This notice disappears by itself once a complete response comes back."
+      "description": "FIRMS cut the response off at its cap of {cap} detections per satellite, so every number for this location is too low \u2014 the number of fires, the distance to the nearest one, and the strongest fire radiative power. Nothing about those numbers looks wrong, which is why this is here.\n\nMake the request smaller until the cap is no longer reached: shrink the radius, switch the detection window from 7 days back to 24 hours, or raise the minimum confidence or minimum fire radiative power. This notice disappears by itself once a complete response comes back."
     },
     "orbit_http": {
       "title": "Satellite observation times are unavailable for {name}",

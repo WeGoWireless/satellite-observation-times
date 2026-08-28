@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import timedelta
 from dataclasses import dataclass, field
 
 from homeassistant.config_entries import ConfigEntry
@@ -40,21 +41,42 @@ from .api import (
 from .const import (
     CLUSTER_RADIUS_KM,
     CONF_AUTO_IGNORE,
+    CONF_ALERT_RADIUS,
     CONF_IGNORE_ZONES,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
+    CONF_MONITORING_MODE,
+    CONF_FIRE_SEASON_START_MONTH,
+    CONF_FIRE_SEASON_START_DAY,
+    CONF_FIRE_SEASON_END_MONTH,
+    CONF_FIRE_SEASON_END_DAY,
+    CONF_FIRMS_FULL_INTERVAL_MIN,
+    CONF_FIRMS_REDUCED_INTERVAL_MIN,
     CONF_SATELLITES,
     CONF_WIND_FIRES,
     CONF_WINDOW,
     DEFAULT_AUTO_IGNORE,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
+    DEFAULT_MONITORING_MODE,
+    DEFAULT_FIRE_SEASON_START_MONTH,
+    DEFAULT_FIRE_SEASON_START_DAY,
+    DEFAULT_FIRE_SEASON_END_MONTH,
+    DEFAULT_FIRE_SEASON_END_DAY,
+    DEFAULT_FIRMS_FULL_INTERVAL_MIN,
+    DEFAULT_FIRMS_REDUCED_INTERVAL_MIN,
     DEFAULT_RADIUS_M,
+    DEFAULT_ALERT_RADIUS_M,
     DEFAULT_SATELLITES,
     DEFAULT_WIND_FIRES,
     DOMAIN,
     FETCH_COUNT,
     MAX_WIND_FIRES,
+    MONITORING_AUTO,
+    MONITORING_DISABLED,
+    MONITORING_FULL,
+    MONITORING_REDUCED,
+    REDUCED_UPDATE_INTERVAL,
     SOURCES_STORAGE_KEY,
     SOURCES_STORAGE_VERSION,
     UPDATE_INTERVAL,
@@ -72,6 +94,8 @@ class FirmsData:
     clusters: list[FirmsCluster] = field(default_factory=list)
     clusters_by_id: dict[str, FirmsCluster] = field(default_factory=dict)
     raw_detections: int = 0
+    monitoring_mode: str = MONITORING_FULL
+    monitoring_active: bool = True
     per_satellite: dict[str, int] = field(default_factory=dict)
     satellite_errors: dict[str, str] = field(default_factory=dict)
     # At least one satellite came back at the FETCH_COUNT ceiling, so the feed
@@ -174,6 +198,7 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         self.latitude: float = cfg[CONF_LATITUDE]
         self.longitude: float = cfg[CONF_LONGITUDE]
         self.radius_km: float = cfg.get(CONF_RADIUS, DEFAULT_RADIUS_M) / 1000
+        self.alert_radius_km: float = cfg.get(CONF_ALERT_RADIUS, DEFAULT_ALERT_RADIUS_M) / 1000
         self.satellites: list[str] = cfg.get(CONF_SATELLITES, DEFAULT_SATELLITES)
         self.window: str = cfg.get(CONF_WINDOW, WINDOW_24H)
         self.min_confidence: str = cfg.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE)
@@ -186,6 +211,19 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             int(cfg.get(CONF_WIND_FIRES, DEFAULT_WIND_FIRES)), MAX_WIND_FIRES
         )
         self.auto_ignore: bool = cfg.get(CONF_AUTO_IGNORE, DEFAULT_AUTO_IGNORE)
+        self.monitoring_mode: str = cfg.get(
+            CONF_MONITORING_MODE, DEFAULT_MONITORING_MODE
+        )
+        self.fire_season_start = (
+            int(cfg.get(CONF_FIRE_SEASON_START_MONTH, DEFAULT_FIRE_SEASON_START_MONTH)),
+            int(cfg.get(CONF_FIRE_SEASON_START_DAY, DEFAULT_FIRE_SEASON_START_DAY)),
+        )
+        self.fire_season_end = (
+            int(cfg.get(CONF_FIRE_SEASON_END_MONTH, DEFAULT_FIRE_SEASON_END_MONTH)),
+            int(cfg.get(CONF_FIRE_SEASON_END_DAY, DEFAULT_FIRE_SEASON_END_DAY)),
+        )
+        self.firms_full_interval_min = int(cfg.get(CONF_FIRMS_FULL_INTERVAL_MIN, DEFAULT_FIRMS_FULL_INTERVAL_MIN))
+        self.firms_reduced_interval_min = int(cfg.get(CONF_FIRMS_REDUCED_INTERVAL_MIN, DEFAULT_FIRMS_REDUCED_INTERVAL_MIN))
         # The per-cell history behind the automatic ignores. Recorded on every
         # cycle whatever `auto_ignore` says, and only *consulted* when it is
         # on: a source needs 60 days to be recognised, so building the history
@@ -212,6 +250,38 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         # has not drifted since gets the same id from its coordinates.
         self._previous_clusters: list[FirmsCluster] = []
 
+    def _in_fire_season(self) -> bool:
+        """Return whether today's local month/day falls inside fire season."""
+        today = dt_util.now().date()
+        md = (today.month, today.day)
+        start = self.fire_season_start
+        end = self.fire_season_end
+        if start <= end:
+            return start <= md <= end
+        # A wrapped season such as November through March.
+        return md >= start or md <= end
+
+    def _effective_monitoring_mode(self) -> str:
+        """Resolve automatic seasonal monitoring to full or reduced."""
+        if self.monitoring_mode != MONITORING_AUTO:
+            return self.monitoring_mode
+        return MONITORING_FULL if self._in_fire_season() else MONITORING_REDUCED
+
+    def _apply_monitoring_interval(self) -> str:
+        """Select the FIRMS cadence for this cycle and return its effective mode."""
+        mode = self._effective_monitoring_mode()
+        if mode == MONITORING_FULL:
+            self.update_interval = timedelta(minutes=self.firms_full_interval_min)
+        elif mode == MONITORING_REDUCED:
+            self.update_interval = timedelta(minutes=self.firms_reduced_interval_min)
+        elif mode == MONITORING_DISABLED:
+            self.update_interval = None
+        else:
+            # Hand-edited unknown values fail safe to normal monitoring.
+            mode = MONITORING_FULL
+            self.update_interval = timedelta(minutes=self.firms_full_interval_min)
+        return mode
+
     async def async_load_sources(self) -> None:
         """Restore the learned source history before the first refresh.
 
@@ -225,6 +295,15 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
         )
 
     async def _async_update_data(self) -> FirmsData:
+        monitoring_mode = self._apply_monitoring_interval()
+        data = FirmsData(
+            monitoring_mode=monitoring_mode,
+            monitoring_active=monitoring_mode != MONITORING_DISABLED,
+        )
+        if monitoring_mode == MONITORING_DISABLED:
+            _LOGGER.debug("Wildfire monitoring disabled for %s", self.config_entry.title)
+            return data
+
         results = await asyncio.gather(
             *(
                 self.client.fetch(sat, self.window, self._bbox, FETCH_COUNT)
@@ -232,7 +311,6 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             ),
             return_exceptions=True,
         )
-        data = FirmsData()
         hotspots = []
         for sat, result in zip(self.satellites, results):
             if isinstance(result, FirmsAuthError):
@@ -354,6 +432,11 @@ class FirmsCoordinator(DataUpdateCoordinator[FirmsData]):
             _LOGGER.info("Satellite observation-time prediction recovered")
         self._orbits_failing = False
         return schedule
+
+    @property
+    def effective_monitoring_mode(self) -> str:
+        """Current resolved monitoring mode for diagnostics and entities."""
+        return self._effective_monitoring_mode()
 
     @property
     def orbits_failing(self) -> bool:

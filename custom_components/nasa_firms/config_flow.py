@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 
 import voluptuous as vol
@@ -49,29 +50,57 @@ from .api import (
 )
 from .const import (
     CONF_AUTO_IGNORE,
+    CONF_ALERT_RADIUS,
     CONF_IGNORE_ZONES,
     CONF_MAP_KEY,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_FRP,
+    CONF_MONITORING_MODE,
+    CONF_FIRE_SEASON_START_MONTH,
+    CONF_FIRE_SEASON_START_DAY,
+    CONF_FIRE_SEASON_END_MONTH,
+    CONF_FIRE_SEASON_END_DAY,
+    CONF_FIRMS_FULL_INTERVAL_MIN,
+    CONF_NGFS_FULL_INTERVAL_MIN,
+    CONF_FIRMS_REDUCED_INTERVAL_MIN,
+    CONF_NGFS_REDUCED_INTERVAL_MIN,
     CONF_REGION,
     CONF_SATELLITES,
     CONF_WIND_FIRES,
     CONF_WINDOW,
     DEFAULT_AUTO_IGNORE,
+    DEFAULT_ALERT_RADIUS_M,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_MIN_FRP,
+    DEFAULT_MONITORING_MODE,
+    DEFAULT_FIRE_SEASON_START_MONTH,
+    DEFAULT_FIRE_SEASON_START_DAY,
+    DEFAULT_FIRE_SEASON_END_MONTH,
+    DEFAULT_FIRE_SEASON_END_DAY,
+    DEFAULT_FIRMS_FULL_INTERVAL_MIN,
+    DEFAULT_NGFS_FULL_INTERVAL_MIN,
+    DEFAULT_FIRMS_REDUCED_INTERVAL_MIN,
+    DEFAULT_NGFS_REDUCED_INTERVAL_MIN,
     DEFAULT_RADIUS_M,
     DEFAULT_SATELLITES,
     DEFAULT_WIND_FIRES,
     DEFAULT_ZONE_RADIUS_M,
     DOMAIN,
     MAP_KEY_URL,
+    MONITORING_AUTO,
+    MONITORING_FULL,
+    MONITORING_REDUCED,
+    MONITORING_DISABLED,
     MAX_RADIUS_M,
     MAX_WIND_FIRES,
     MAX_ZONE_RADIUS_M,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+METERS_PER_MILE = 1609.344
+MAX_RADIUS_MILES = MAX_RADIUS_M / METERS_PER_MILE
+DEFAULT_RADIUS_MILES = DEFAULT_RADIUS_M / METERS_PER_MILE
 
 SATELLITE_OPTIONS = [SelectOptionDict(value=k, label=v) for k, v in SATELLITES.items()]
 WINDOW_OPTIONS = [
@@ -83,6 +112,112 @@ CONFIDENCE_OPTIONS = [
     SelectOptionDict(value="nominal", label="Nominal or higher"),
     SelectOptionDict(value="high", label="High only"),
 ]
+
+MONITORING_OPTIONS = [
+    SelectOptionDict(value=MONITORING_AUTO, label="Automatic seasonal"),
+    SelectOptionDict(value=MONITORING_FULL, label="Full monitoring"),
+    SelectOptionDict(value=MONITORING_REDUCED, label="Reduced monitoring"),
+    SelectOptionDict(value=MONITORING_DISABLED, label="Disabled"),
+]
+
+MONITORING_SCHEMA = {
+    vol.Required(CONF_MONITORING_MODE, default=DEFAULT_MONITORING_MODE): SelectSelector(
+        SelectSelectorConfig(
+            options=MONITORING_OPTIONS, mode=SelectSelectorMode.DROPDOWN
+        )
+    ),
+    vol.Required(
+        CONF_FIRE_SEASON_START_MONTH, default=DEFAULT_FIRE_SEASON_START_MONTH
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=12, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_FIRE_SEASON_START_DAY, default=DEFAULT_FIRE_SEASON_START_DAY
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=31, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_FIRE_SEASON_END_MONTH, default=DEFAULT_FIRE_SEASON_END_MONTH
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=12, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_FIRE_SEASON_END_DAY, default=DEFAULT_FIRE_SEASON_END_DAY
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=31, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_FIRMS_FULL_INTERVAL_MIN, default=DEFAULT_FIRMS_FULL_INTERVAL_MIN
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=1440, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_NGFS_FULL_INTERVAL_MIN, default=DEFAULT_NGFS_FULL_INTERVAL_MIN
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=1440, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_FIRMS_REDUCED_INTERVAL_MIN, default=DEFAULT_FIRMS_REDUCED_INTERVAL_MIN
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=10080, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+    vol.Required(
+        CONF_NGFS_REDUCED_INTERVAL_MIN, default=DEFAULT_NGFS_REDUCED_INTERVAL_MIN
+    ): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(min=1, max=10080, step=1, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Coerce(int),
+    ),
+}
+
+# Main monitoring radius for both FIRMS and NOAA NGFS. Home Assistant stores
+# the canonical value in metres because the existing entry and location picker
+# use metres, while this fork presents the setting in miles.
+OPTIONS_RADIUS_SCHEMA = {
+    vol.Required(CONF_RADIUS, default=round(DEFAULT_RADIUS_MILES, 1)): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(
+                min=1,
+                max=round(MAX_RADIUS_MILES, 1),
+                step=1,
+                mode=NumberSelectorMode.BOX,
+                unit_of_measurement="mi",
+            )
+        ),
+        vol.Coerce(float),
+    ),
+    vol.Required(CONF_ALERT_RADIUS, default=60.0): vol.All(
+        NumberSelector(
+            NumberSelectorConfig(
+                min=1, max=round(MAX_RADIUS_MILES, 1), step=1,
+                mode=NumberSelectorMode.BOX, unit_of_measurement="mi",
+            )
+        ),
+        vol.Coerce(float),
+    ),
+}
 
 # Options flow only, deliberately not part of the initial setup: the default
 # carries, the setup form is long enough, and this is a budget dial rather
@@ -297,33 +432,113 @@ class NasaFirmsOptionsFlow(OptionsFlow):
         """Offer the two halves of the options: filters and ignore zones."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["filters", "zones"],
+            menu_options={
+                "filters": "Satellites and filters",
+                "monitoring": "Seasonal monitoring",
+                "zones": "Ignore zones",
+            },
             description_placeholders={"zone_count": str(len(self.zones))},
         )
 
     async def async_step_filters(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Satellites, detection window, confidence, FRP and automatic ignores."""
+        """Satellites, shared radius, filters, wind budget and auto ignores."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(data={**self.options, **user_input})
+            # The UI is miles; the existing coordinator/API contract is metres.
+            radius_miles = float(user_input[CONF_RADIUS])
+            radius_m = round(radius_miles * METERS_PER_MILE)
+            alert_radius_m = round(float(user_input[CONF_ALERT_RADIUS]) * METERS_PER_MILE)
+            if radius_m > MAX_RADIUS_M or alert_radius_m > MAX_RADIUS_M:
+                errors["base"] = "radius_too_large"
+            elif alert_radius_m > radius_m:
+                errors["base"] = "alert_radius_exceeds_monitoring"
+            else:
+                saved = {**user_input, CONF_RADIUS: radius_m, CONF_ALERT_RADIUS: alert_radius_m}
+                return self.async_create_entry(data={**self.options, **saved})
+
+        current = {**self.config_entry.data, **self.options}
+        suggested = {
+            key: current[key]
+            for key in (
+                CONF_SATELLITES,
+                CONF_WINDOW,
+                CONF_MIN_CONFIDENCE,
+                CONF_MIN_FRP,
+                CONF_WIND_FIRES,
+                CONF_AUTO_IGNORE,
+    CONF_ALERT_RADIUS,
+            )
+            if key in current
+        }
+        suggested[CONF_RADIUS] = round(
+            float(current.get(CONF_RADIUS, DEFAULT_RADIUS_M)) / METERS_PER_MILE, 1
+        )
+        suggested[CONF_ALERT_RADIUS] = round(
+            float(current.get(CONF_ALERT_RADIUS, DEFAULT_ALERT_RADIUS_M)) / METERS_PER_MILE, 1
+        )
+        schema = self.add_suggested_values_to_schema(
+            vol.Schema(
+                {
+                    **OPTIONS_RADIUS_SCHEMA,
+                    **FILTER_SCHEMA,
+                    **WIND_SCHEMA,
+                    **AUTO_IGNORE_SCHEMA,
+                }
+            ),
+            suggested,
+        )
+        return self.async_show_form(
+            step_id="filters", data_schema=schema, errors=errors
+        )
+
+    async def async_step_monitoring(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Set fire-season dates and the active/reduced monitoring policy."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                # Leap year accepts every legitimate month/day pair, including
+                # Feb 29. The year is irrelevant; only the seasonal boundary
+                # is stored.
+                date(
+                    2000,
+                    user_input[CONF_FIRE_SEASON_START_MONTH],
+                    user_input[CONF_FIRE_SEASON_START_DAY],
+                )
+                date(
+                    2000,
+                    user_input[CONF_FIRE_SEASON_END_MONTH],
+                    user_input[CONF_FIRE_SEASON_END_DAY],
+                )
+            except ValueError:
+                errors["base"] = "invalid_season_date"
+            else:
+                return self.async_create_entry(data={**self.options, **user_input})
+
         current = {**self.config_entry.data, **self.options}
         schema = self.add_suggested_values_to_schema(
-            vol.Schema({**FILTER_SCHEMA, **WIND_SCHEMA, **AUTO_IGNORE_SCHEMA}),
+            vol.Schema(MONITORING_SCHEMA),
             {
-                key: current[key]
-                for key in (
-                    CONF_SATELLITES,
-                    CONF_WINDOW,
-                    CONF_MIN_CONFIDENCE,
-                    CONF_MIN_FRP,
-                    CONF_WIND_FIRES,
-                    CONF_AUTO_IGNORE,
+                key: current.get(key, default)
+                for key, default in (
+                    (CONF_MONITORING_MODE, DEFAULT_MONITORING_MODE),
+                    (CONF_FIRE_SEASON_START_MONTH, DEFAULT_FIRE_SEASON_START_MONTH),
+                    (CONF_FIRE_SEASON_START_DAY, DEFAULT_FIRE_SEASON_START_DAY),
+                    (CONF_FIRE_SEASON_END_MONTH, DEFAULT_FIRE_SEASON_END_MONTH),
+                    (CONF_FIRE_SEASON_END_DAY, DEFAULT_FIRE_SEASON_END_DAY),
+                    (CONF_FIRMS_FULL_INTERVAL_MIN, DEFAULT_FIRMS_FULL_INTERVAL_MIN),
+                    (CONF_NGFS_FULL_INTERVAL_MIN, DEFAULT_NGFS_FULL_INTERVAL_MIN),
+                    (CONF_FIRMS_REDUCED_INTERVAL_MIN, DEFAULT_FIRMS_REDUCED_INTERVAL_MIN),
+                    (CONF_NGFS_REDUCED_INTERVAL_MIN, DEFAULT_NGFS_REDUCED_INTERVAL_MIN),
                 )
-                if key in current
             },
         )
-        return self.async_show_form(step_id="filters", data_schema=schema)
+        return self.async_show_form(
+            step_id="monitoring", data_schema=schema, errors=errors
+        )
 
     async def async_step_zones(
         self, user_input: dict[str, Any] | None = None
@@ -352,7 +567,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             return (
                 f"{name} — {float(zone[CONF_LATITUDE]):.4f}/"
                 f"{float(zone[CONF_LONGITUDE]):.4f}, "
-                f"{float(zone[CONF_RADIUS]) / 1000:.1f} km"
+                f"{float(zone[CONF_RADIUS]) / METERS_PER_MILE:.1f} mi"
             )
         except (KeyError, TypeError, ValueError):
             return f"{name} — incomplete, has no effect"
@@ -411,7 +626,7 @@ class NasaFirmsOptionsFlow(OptionsFlow):
             step_id="add_zone",
             data_schema=schema,
             errors=errors,
-            description_placeholders={"max_km": str(MAX_ZONE_RADIUS_M // 1000)},
+            description_placeholders={"max_miles": f"{MAX_ZONE_RADIUS_M / METERS_PER_MILE:.1f}"},
         )
 
     async def async_step_remove_zone(

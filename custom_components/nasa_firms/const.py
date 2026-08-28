@@ -12,6 +12,16 @@ CONF_MIN_FRP = "min_frp"
 CONF_IGNORE_ZONES = "ignore_zones"
 CONF_WIND_FIRES = "wind_fires"
 CONF_AUTO_IGNORE = "auto_ignore"
+CONF_MONITORING_MODE = "monitoring_mode"
+CONF_FIRE_SEASON_START_MONTH = "fire_season_start_month"
+CONF_FIRE_SEASON_START_DAY = "fire_season_start_day"
+CONF_FIRE_SEASON_END_MONTH = "fire_season_end_month"
+CONF_FIRE_SEASON_END_DAY = "fire_season_end_day"
+CONF_FIRMS_FULL_INTERVAL_MIN = "firms_full_interval_min"
+CONF_NGFS_FULL_INTERVAL_MIN = "ngfs_full_interval_min"
+CONF_FIRMS_REDUCED_INTERVAL_MIN = "firms_reduced_interval_min"
+CONF_NGFS_REDUCED_INTERVAL_MIN = "ngfs_reduced_interval_min"
+CONF_ALERT_RADIUS = "alert_radius"
 
 # A zone is only ever meant to cover a known heat source and its immediate
 # surroundings — a plant, a flare stack, a landfill. Wide enough and it starts
@@ -21,6 +31,7 @@ MAX_ZONE_RADIUS_M = 20_000
 
 DEFAULT_SATELLITES = ["noaa20", "noaa21", "snpp"]
 DEFAULT_RADIUS_M = 100_000
+DEFAULT_ALERT_RADIUS_M = 96_560  # 60 miles
 # The location selector happily lets a user drag the circle across a continent,
 # and past a certain size FETCH_COUNT silently clips the result. 500 km is five
 # times the default and still answers "my area and well beyond it"; past that
@@ -55,9 +66,34 @@ SOURCES_STORAGE_KEY = f"{DOMAIN}.sources"
 DEFAULT_WIND_FIRES = 3
 MAX_WIND_FIRES = 5
 
-# NASA refreshes FIRMS NRT data roughly every 15 minutes — polling faster
-# only burns request quota without new data.
-UPDATE_INTERVAL = timedelta(minutes=15)
+# Wildfire monitoring cadence. The full-rate FIRMS interval follows NASA's
+# roughly 15-minute NRT refresh. Off-season mode keeps a low-rate safety net
+# instead of going completely dark. NGFS uses its own cadence when that
+# provider is enabled (5 minutes full-rate, 1 hour reduced-rate).
+MONITORING_AUTO = "automatic"
+MONITORING_FULL = "full"
+MONITORING_REDUCED = "reduced"
+MONITORING_DISABLED = "disabled"
+DEFAULT_MONITORING_MODE = MONITORING_AUTO
+DEFAULT_FIRE_SEASON_START_MONTH = 5
+DEFAULT_FIRE_SEASON_START_DAY = 1
+DEFAULT_FIRE_SEASON_END_MONTH = 10
+DEFAULT_FIRE_SEASON_END_DAY = 31
+
+DEFAULT_FIRMS_FULL_INTERVAL_MIN = 15
+DEFAULT_NGFS_FULL_INTERVAL_MIN = 5
+DEFAULT_FIRMS_REDUCED_INTERVAL_MIN = 120
+DEFAULT_NGFS_REDUCED_INTERVAL_MIN = 60
+
+UPDATE_INTERVAL = timedelta(minutes=DEFAULT_FIRMS_FULL_INTERVAL_MIN)
+REDUCED_UPDATE_INTERVAL = timedelta(minutes=DEFAULT_FIRMS_REDUCED_INTERVAL_MIN)
+NGFS_UPDATE_INTERVAL = timedelta(minutes=DEFAULT_NGFS_FULL_INTERVAL_MIN)
+NGFS_REDUCED_UPDATE_INTERVAL = timedelta(minutes=DEFAULT_NGFS_REDUCED_INTERVAL_MIN)
+NGFS_LOOKBACK = timedelta(hours=2)
+NGFS_FETCH_COUNT = 1000
+NGFS_COLLECTION_WEST = "ngfs_schema.ngfs_detections_scene_west_conus"
+NGFS_COLLECTION_EAST = "ngfs_schema.ngfs_detections_scene_east_conus"
+NGFS_API_ROOT = "https://fire.data.nesdis.noaa.gov/api/ogc/detections"
 
 # VIIRS pixel is 375 m; 1 km absorbs cross-satellite geolocation jitter.
 CLUSTER_RADIUS_KM = 1.0
