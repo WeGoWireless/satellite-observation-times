@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import WeatherError, WindObservation, bearing_deg, cardinal, haversine_km
 from .const import (CONF_ALERT_RADIUS, DEFAULT_ALERT_RADIUS_M, CONF_NGFS_FULL_INTERVAL_MIN, CONF_NGFS_REDUCED_INTERVAL_MIN, DEFAULT_NGFS_FULL_INTERVAL_MIN, DEFAULT_NGFS_REDUCED_INTERVAL_MIN, MONITORING_DISABLED, MONITORING_REDUCED, NGFS_COLLECTION_EAST,
-    NGFS_COLLECTION_WEST, NGFS_LOOKBACK, NGFS_REDUCED_UPDATE_INTERVAL, NGFS_UPDATE_INTERVAL)
+    NGFS_COLLECTION_WEST, NGFS_LOOKBACK, NGFS_REDUCED_UPDATE_INTERVAL, NGFS_UPDATE_INTERVAL, EVENT_NEW_NGFS_FIRE)
 from .ngfs import NgfsClient, NgfsDetection, NgfsError
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +95,9 @@ class NgfsData:
     nearest_tracked_wind: WindObservation | None = None
     combined_incidents: list[CombinedIncident] = field(default_factory=list)
     matched_incidents: int = 0
+    # Fires that entered the configured alert radius for the first time during
+    # this Home Assistant runtime. Empty on the initial baseline refresh.
+    new_alert_fires: list[NgfsTrackedFire] = field(default_factory=list)
 
     @property
     def nearest(self) -> NgfsDetection | None:
@@ -117,6 +120,10 @@ class NgfsCoordinator(DataUpdateCoordinator[NgfsData]):
         self.alert_radius_km=float(cfg.get(CONF_ALERT_RADIUS, DEFAULT_ALERT_RADIUS_M)) / 1000
         self.full_interval_min=int(cfg.get(CONF_NGFS_FULL_INTERVAL_MIN, DEFAULT_NGFS_FULL_INTERVAL_MIN))
         self.reduced_interval_min=int(cfg.get(CONF_NGFS_REDUCED_INTERVAL_MIN, DEFAULT_NGFS_REDUCED_INTERVAL_MIN))
+        # None means the first successful NGFS refresh has not established a
+        # baseline yet. Keep IDs for the whole runtime so a temporary feed gap
+        # does not create a duplicate "new fire" alert when a feature returns.
+        self._seen_alert_tracking_ids: set[str] | None = None
 
     def _collection(self) -> str:
         # GOES-West is preferred west of the central CONUS overlap; East otherwise.
@@ -190,6 +197,40 @@ class NgfsCoordinator(DataUpdateCoordinator[NgfsData]):
         )
         combined_incidents, matched_incidents = self._combined_incidents(tracked)
 
+        # Early-warning layer: a tracking feature becomes "new nearby" the
+        # first time it is observed inside the user's alert radius. The first
+        # successful refresh after startup only establishes a baseline, which
+        # prevents Home Assistant restarts from generating false ignition alerts.
+        alert_fires = [f for f in tracked if f.distance_km <= self.alert_radius_km]
+        current_alert_ids = {f.tracking_id for f in alert_fires}
+        if self._seen_alert_tracking_ids is None:
+            new_alert_fires: list[NgfsTrackedFire] = []
+            self._seen_alert_tracking_ids = set(current_alert_ids)
+        else:
+            new_alert_fires = [
+                f for f in alert_fires
+                if f.tracking_id not in self._seen_alert_tracking_ids
+            ]
+            self._seen_alert_tracking_ids.update(current_alert_ids)
+
+        for fire in new_alert_fires:
+            self.hass.bus.async_fire(
+                EVENT_NEW_NGFS_FIRE,
+                {
+                    "entry_id": self.config_entry.entry_id,
+                    "tracking_id": fire.tracking_id,
+                    "name": fire.name,
+                    "distance_miles": round(fire.distance_km * 0.621371, 1),
+                    "direction": fire.direction,
+                    "bearing": round(fire.bearing),
+                    "latest": fire.latest.isoformat(),
+                    "max_frp": fire.max_frp,
+                    "detection_count": fire.detection_count,
+                    "satellite": fire.satellite,
+                    "alert_radius_miles": round(self.alert_radius_km * 0.621371, 1),
+                },
+            )
+
         return NgfsData(
             detections=[d for _,d in nearby],
             records_received=len(found),
@@ -206,6 +247,7 @@ class NgfsCoordinator(DataUpdateCoordinator[NgfsData]):
             nearest_tracked_wind=nearest_wind,
             combined_incidents=combined_incidents,
             matched_incidents=matched_incidents,
+            new_alert_fires=new_alert_fires,
         )
 
     def _combined_incidents(self, tracked: list[NgfsTrackedFire]) -> tuple[list[CombinedIncident], int]:

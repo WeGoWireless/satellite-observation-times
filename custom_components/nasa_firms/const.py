@@ -123,3 +123,6 @@ DATA_PLACES = "places"
 USER_AGENT = "ha-nasa-firms/{version} github.com/bangboomben/ha-nasa-firms"
 
 MAP_KEY_URL = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"
+
+# Home Assistant event emitted when a new NGFS tracked fire first enters the alert radius.
+EVENT_NEW_NGFS_FIRE = "wildfire_monitor_new_ngfs_fire"

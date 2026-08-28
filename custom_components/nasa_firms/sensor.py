@@ -527,6 +527,35 @@ def _ngfs_nearest_tracked_attrs(c):
         "alert_radius_miles": round(c.alert_radius_km * KM_TO_MILES, 1),
     }
 
+
+def _new_ngfs_fire_value(c):
+    """Distance to the nearest NGFS fire newly entering the alert radius."""
+    if not c.data.new_alert_fires:
+        return None
+    return round(c.data.new_alert_fires[0].distance_km * KM_TO_MILES, 1)
+
+def _new_ngfs_fire_attrs(c):
+    fires = c.data.new_alert_fires
+    if not fires:
+        return {
+            "new_fire": False,
+            "alert_radius_miles": round(c.alert_radius_km * KM_TO_MILES, 1),
+        }
+    f = fires[0]
+    return {
+        "new_fire": True,
+        "new_fires_this_update": len(fires),
+        "name": f.name,
+        "tracking_id": f.tracking_id,
+        "direction": f.direction,
+        "bearing": round(f.bearing),
+        "latest": f.latest.isoformat(),
+        "max_frp": f.max_frp,
+        "detection_count": f.detection_count,
+        "satellite": f.satellite,
+        "alert_radius_miles": round(c.alert_radius_km * KM_TO_MILES, 1),
+    }
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: NasaFirmsConfigEntry,
@@ -561,6 +590,7 @@ async def async_setup_entry(
             NgfsSensor(ngfs, entry, "tracked_fires_toward", "NGFS tracked fires toward us", "mdi:weather-windy", lambda c: len(_ngfs_toward_fires(c)), _ngfs_toward_attrs),
             NgfsSensor(ngfs, entry, "nearest_smoke_threat", "Nearest NGFS smoke threat", "mdi:weather-windy-alert", _ngfs_nearest_smoke_threat_value, _ngfs_nearest_smoke_threat_attrs, "mi"),
             NgfsSensor(ngfs, entry, "alert_fires", "NGFS fires inside alert radius", "mdi:alarm-light-outline", lambda c: sum(1 for f in c.data.tracked_fires if f.distance_km <= c.alert_radius_km), lambda c: {"alert_radius_miles": round(c.alert_radius_km * KM_TO_MILES, 1), "monitoring_radius_miles": round(c.radius_km * KM_TO_MILES, 1)}),
+            NgfsSensor(ngfs, entry, "new_alert_fire", "New NGFS fire", "mdi:fire-alert", _new_ngfs_fire_value, _new_ngfs_fire_attrs, "mi"),
         ])
 
 
