@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "NASA FIRMS Wildfire Monitor",
+        "title": "Wildfire Monitor",
         "description": "Get a free MAP_KEY at {map_key_url} \u2014 it is stored in the config entry and never shown in the UI.",
         "data": {
           "map_key": "FIRMS MAP_KEY",

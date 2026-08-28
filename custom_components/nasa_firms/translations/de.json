@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "NASA FIRMS Waldbrand-Monitor",
+        "title": "Wildfire Monitor",
         "description": "Kostenlosen MAP_KEY unter {map_key_url} anfordern — der Key wird im Config-Eintrag gespeichert und nie in der UI angezeigt.",
         "data": {
           "map_key": "FIRMS MAP_KEY",
