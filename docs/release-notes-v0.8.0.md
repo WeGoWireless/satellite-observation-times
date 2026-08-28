@@ -6,7 +6,8 @@ Text for the GitHub release.
 
 A fire used to arrive as `43.61/3.93`. Now it arrives near Montpellier.
 
-Every fire entity gains two attributes:
+Every fire is a `geo_location` entity of its own, and each one gains two
+attributes — they sit on the fire, not on the sensors:
 
 | Attribute | Meaning |
 |---|---|
@@ -14,7 +15,8 @@ Every fire entity gains two attributes:
 | `place_distance_km` | How far that place is **from the fire** — always kilometres |
 
 So a notification can read *"fire 18 km away, near Saint-Martin-de-Londres"*
-instead of a pair of coordinates.
+instead of a pair of coordinates. The nearest-hotspot sensor points at the
+fire to read them from, in its `nearest_entity_id` attribute.
 [The recipes](https://github.com/bangboomben/ha-nasa-firms/blob/v0.8.0/docs/templates.md#name-the-place-a-fire-is-near)
 cover the plain version, the miles version, and how to say "in open country"
 when the nearest town is genuinely far off.

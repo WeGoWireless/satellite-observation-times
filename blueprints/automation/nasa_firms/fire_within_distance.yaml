@@ -63,7 +63,8 @@ blueprint:
       description: >-
         Usually a notification. Two variables are ready for you to use:
         `{{ title }}` and `{{ message }}` — the message already contains the
-        distance, the direction and, when it is known, the wind sentence.
+        distance, the direction, the nearest town and, when it is known, the
+        wind sentence.
       selector:
         action: {}
 
@@ -92,6 +93,18 @@ variables:
   # showing miles would read out 14 decimal places here.
   message: >-
     {%- set dir = state_attr(sensor, 'direction') -%}
+    {#- The place lives on the fire, not on this sensor: several fires means
+        no single correct value, so the sensor points at one instead. The id
+        can be missing for a moment after a restart, before Home Assistant
+        has added the fire entities. -#}
+    {%- set fire_entity = state_attr(sensor, 'nearest_entity_id') -%}
+    {%- set place = state_attr(fire_entity, 'place_name') if fire_entity else none -%}
+    {%- set place_km = state_attr(fire_entity, 'place_distance_km') if fire_entity else none -%}
+    {#- 25 km is the cut-off the recipes use: past it the nearest listed town
+        says more about how empty the map is than about where the fire is. -#}
+    {%- set where = none if place is none else
+        ('near ' ~ place if place_km is not none and place_km <= 25
+         else 'in open country') -%}
     {%- set fire = state_attr(sensor, 'bearing') -%}
     {%- set wind = state_attr(sensor, 'wind_bearing') -%}
     {%- set off = (((wind - fire) + 180) % 360 - 180) | abs
@@ -99,7 +112,7 @@ variables:
     {%- set drift = none if off is none else
         ('towards you' if off <= 60 else
         ('past you to one side' if off <= 120 else 'away from you')) -%}
-    Fire detected {{ states(sensor, rounded=True) }} {{ unit }}{{ ' ' ~ dir if dir else '' }}.
+    Fire detected {{ states(sensor, rounded=True) }} {{ unit }}{{ ' ' ~ dir if dir else '' }}{{ ', ' ~ where if where else '' }}.
     {{- '' if off is none else
         ' Wind at the fire is pushing the smoke ' ~ drift ~
         ' (' ~ (off | round) ~ '° off the line to you).' }}

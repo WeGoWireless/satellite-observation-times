@@ -395,3 +395,46 @@ template:
 
 Found by @pyspilf in the community thread while wiring the watchdog into a
 custom button card.
+
+## When did a satellite last look?
+
+The previous section answers *did the feed arrive*. This one answers the
+question underneath it: **did anything actually look?** A quiet map means very
+little if the last satellite pass was seven hours ago — and it means something
+different again if the last pass was ten minutes ago, because the data from it
+cannot have arrived yet.
+
+The **Next satellite observation** sensor carries a timestamp, so Home
+Assistant's time trigger takes the entity directly — and takes an offset with
+it. The offset is the whole point: firing at the observation tells you nothing,
+because FIRMS NRT data arrives up to ~3 h later. Fire three hours after the
+pass and you are asking the question at a moment when the answer can exist:
+
+```yaml
+automation:
+  triggers:
+    - trigger: time
+      at:
+        entity_id: sensor.firms_43_60_3_90_next_satellite_observation
+        offset: "03:00:00"
+  actions:
+    - action: notify.persistent_notification
+      data:
+        message: >
+          {{ states('sensor.firms_43_60_3_90_hotspots') }} fires in the
+          monitored area. This covers the satellite pass three hours ago,
+          whose data should now be in.
+```
+
+The trigger re-arms itself. As soon as one pass is behind us the sensor moves
+to the next one, the trigger follows it, and the automation tracks the
+satellites without a schedule of its own.
+
+**Three hours is the outer edge, not the typical case.** Most NRT data lands
+sooner. Shorten the offset if you would rather look early and accept the
+occasional answer that was simply too early.
+
+**This is not a fire alert.** It fires on a satellite pass, not on a detection
+— every time, fires or none. For "tell me when something is burning near me",
+use the [proximity alert](#proximity-alert) instead; this one is for knowing
+how current the picture on your dashboard is.

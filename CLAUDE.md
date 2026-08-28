@@ -60,7 +60,8 @@ Thread feedback drives the roadmap:
   in v0.3.0 as a base64 SVG data URI (not percent-encoded — it lands in an
   unquoted `url()`), full-bleed 24x24, one shared module constant. `_attr_icon`
   stays for the entity list and more-info dialog, which do use it.
-- **Map card clustering (verified 2026-07-29, frontend `dev`).** The core card
+- **Map card clustering (verified 2026-07-29, re-checked 2026-08-27, frontend
+  `dev`).** The core card
   merges markers within 40 px into one disc carrying a count
   (`markerClusterGroup({maxClusterRadius: 40})` in `ha-map.ts`), and it is the
   default: `this._clusterMarkers = this._config.cluster ?? true`
@@ -68,14 +69,36 @@ Thread feedback drives the roadmap:
   ~18 km at 43.6° N — so in a busy area the intensity colours of v0.4.0 collapse
   into one `--primary-color` bubble, exactly where they matter most. `cluster:
   false` turns it off and exists only from **HA 2025.6** (frontend #25429);
-  clustering itself landed in 2025.3 (#24244), so 2025.3–2025.5 get it with no
-  way out, and `hacs.json` currently claims 2025.1.0. The built-in **Map panel**
+  clustering itself landed in 2025.3 (#24244), so 2025.3–2025.5 got it with no
+  way out — no longer our problem, `hacs.json` has required 2025.6.0 since
+  v0.5.0. **Since some 2026.x release the card also carries a toggle button**
+  (`_toggleClusterMarkers`, shown whenever more than one entity is on the
+  map), so a user can switch grouping off without touching YAML — which makes
+  it a one-tap diagnostic when someone reports odd marker behaviour. The built-in **Map panel**
   renders `<ha-map>` without `clusterMarkers`, i.e. at the component default
   `true`, and offers no setting — it always clusters. With clustering off, draw
   order is Leaflet's: `DecoratedMarker` extends `Marker` and nothing in the
   frontend sets `zIndexOffset`, so z-index follows the marker's y pixel
   position — **the southernmost fire draws on top, never the strongest**.
   Neither is reachable from the integration; both are documentation.
+- **Stale markers are not a removal bug (verified 2026-08-27, frontend `dev`).**
+  Chased for the community thread (RedKing, posts #49/#51: eight hotspots but
+  eleven markers, cured by restarting Fully Kiosk). The removal path is sound
+  at all three links, so **do not go looking for a data-side bug here again**:
+  `_drawEntities` in `ha-map.ts` clears every marker, every zone **and the
+  whole cluster group** (`this._mapCluster.remove()`) before redrawing;
+  `hui-map-card.shouldUpdate` returns true on any `hass.states` change while
+  `geo_location_sources` is set; and `willUpdate` rebuilds the entity array
+  behind a `deepEqual`, and that new array identity is what
+  `changedProps.has("entities")` picks up to trigger the redraw. A vanished
+  fire does reach the map. What is left is a rendering asymmetry: sensor
+  values are Lit DOM updates, while Leaflet only repaints when driven — which
+  is why the component carries a `ResizeObserver` on `invalidateSize` and a
+  `visibilitychange` listener at all. Unproven from here; it needs the
+  reporter to say whether a plain desktop browser goes stale too.
+  Incidental drift worth knowing: `ha-map` now takes `_states` from a Lit
+  context (`@consume`) rather than a `hass` property, so the July notes above
+  describe an older shape in that one respect.
 - **Dark mode does not touch our markers (verified 2026-07-29).** `ha-map.ts`
   defines `--map-filter: invert(0.9) hue-rotate(170deg) …` on `#map.forced-dark`
   but applies it to `.leaflet-tile-pane` only. Markers sit in
